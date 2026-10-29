@@ -3,7 +3,7 @@
 입력: 예약 목록 표의 각 행 [예약번호, 예약자정보, 객실명, 체크인, 체크아웃, 채널, 메모, 상태, 금액]
 - 예약완료만 넣고, 같은 예약번호(pms_id)가 이미 있으면 정보만 갱신 (링크 코드는 유지)
 - 050 안심번호이거나 번호가 없으면 need_phone = true (손님 화면에서 번호를 받음)
-- 이름은 직원 화면용으로 가운데를 가림 (강병창 → 강*창)
+- 이름은 그대로 저장 (직원 화면은 비밀번호로 보호)
 """
 import json, re, secrets, sys
 from datetime import date
@@ -17,11 +17,9 @@ def room_name(full):
     m = re.match(r"\s*(\d호실|별채)", full)
     return m.group(1) if m else None
 
-def mask(name):
-    name = re.sub(r"\(.*?\)", "", name).strip()
-    if len(name) <= 1: return name
-    if len(name) == 2: return name[0] + "*"
-    return name[0] + "*" * (len(name) - 2) + name[-1]
+def clean_name(name):
+    """'yiseul ryu(South Korea)' → 'yiseul ryu'"""
+    return re.sub(r"\(.*?\)", "", name).strip()
 
 def phone(raw):
     """실번호면 010-xxxx-xxxx 형식으로, 안심번호·없음이면 None"""
@@ -45,7 +43,7 @@ def to_sql(rows):
         nights = max(1, (date.fromisoformat(r[4]) - date.fromisoformat(r[3])).days)
         memo = None if r[6].strip() in ("", "-") else r[6].strip()
         p = phone(ph)
-        vals.append(f"({q(r[0])}, {q(new_code())}, {q(room)}, {q(r[3])}, {nights}, {q(mask(name))}, "
+        vals.append(f"({q(r[0])}, {q(new_code())}, {q(room)}, {q(r[3])}, {nights}, {q(clean_name(name))}, "
                     f"{q(r[5].split(' · ')[0])}, {q(p)}, {str(p is None).lower()}, {q(memo)})")
     return ("insert into public.reservations (pms_id, code, room, checkin, nights, guest_name, channel, pms_phone, need_phone, pms_memo) values\n  "
             + ",\n  ".join(vals) +
