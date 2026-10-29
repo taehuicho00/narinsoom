@@ -64,6 +64,8 @@
   .login{max-width:360px;margin:60px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
   .login input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:16px;margin-bottom:10px}
   .login button{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
+  .pin{text-align:center;font-size:28px !important;letter-spacing:.5em}
+  .hint{font-size:12px;color:var(--sub);margin-top:10px;text-align:center}
   .logout{border:0;background:none;color:var(--sub);font-size:12px;text-decoration:underline}
   .hidden{display:none !important}
 </style>
@@ -72,16 +74,16 @@
 <!-- 로그인 화면 -->
 <form class="login hidden" id="loginBox">
   <div class="brand">NARINSOOM · STAFF</div>
-  <h1>직원 로그인</h1>
-  <input type="email" id="email" placeholder="이메일" autocomplete="username" required>
-  <input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" required>
-  <button type="submit" id="loginBtn">로그인</button>
+  <h1>비밀번호 4자리</h1>
+  <input type="password" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" class="pin">
+  <button type="submit" id="loginBtn">확인</button>
   <div class="err hidden" id="loginErr"></div>
+  <div class="hint">한 번 입력하면 이 기기에서는 30일간 다시 묻지 않습니다.</div>
 </form>
 
 <!-- 직원 화면 -->
 <div class="wrap hidden" id="main">
-  <div class="top"><div class="brand">NARINSOOM · STAFF</div><div><span class="brand" id="clock"></span> <button class="logout" id="logout">로그아웃</button></div></div>
+  <div class="top"><div class="brand">NARINSOOM · STAFF</div><div><span class="brand" id="clock"></span> <button class="logout" id="logout">잠금</button></div></div>
   <h1>입실 현황</h1>
   <div class="weekbar"><button class="nav" id="prev">‹</button><span id="weekLabel"></span><button class="nav" id="next">›</button></div>
   <div class="week" id="week"></div>
@@ -136,13 +138,21 @@ const won = n => n.toLocaleString("ko-KR") + "원";
 const hm = t => t ? t.slice(0,5) : "";  // "16:30:00" → "16:30"
 
 // ── 이번 주 예약 + 손님 응답 불러오기 ──
+// 이 기기에 저장된 토큰 (비밀번호 원문은 저장하지 않음)
+const TOKEN_KEY = "narinsoom_staff_token";
+const getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } };
+const setToken = t => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} };
+let memToken = getToken();
+
 async function load(){
-  const { data, error } = await sb.from("reservations")
-    .select("id, code, room, checkin, nights, guest_name, channel, pms_phone, need_phone, paid, responses(*)")
-    .gte("checkin", weekStart).lte("checkin", addDays(weekStart, 6));
-  if(error){ toast("불러오기 실패: " + error.message); return; }
-  DATA = data.map(r => {
-    const s = Array.isArray(r.responses) ? r.responses[0] : r.responses;
+  const { data, error } = await sb.rpc("staff_week", { p_token: memToken, p_from: weekStart, p_to: addDays(weekStart, 6) });
+  if(error){
+    if(String(error.message).includes("invalid_token")) return showLogin();
+    toast("불러오기 실패: " + error.message); return;
+  }
+  ROOMS = Object.fromEntries(data.rooms.map(x=>[x.name,x]));
+  DATA = data.reservations.map(r => {
+    const s = r.response;
     return { ...r, answer: s ? { people:s.people, pets:s.pets, time:hm(s.checkin_time), bbq:hm(s.bbq_time), memo:s.memo, phone:s.phone } : null };
   });
   $("updated").textContent = `마지막 업데이트 ${new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} · 1분마다 자동 새로고침`;
@@ -207,36 +217,35 @@ $("filter").onclick = e=>{
 $("list").onclick = async e=>{
   const pay=e.target.closest("[data-pay]"); if(!pay) return;
   const r=DATA.find(x=>x.id===pay.dataset.pay); const v=!r.paid;
-  const { error } = await sb.from("reservations").update({ paid:v, paid_at: v ? new Date().toISOString() : null }).eq("id", r.id);
-  if(error) return toast("저장 실패: " + error.message);
+  const { error } = await sb.rpc("staff_set_paid", { p_token: memToken, p_id: r.id, p_paid: v });
+  if(error){ if(String(error.message).includes("invalid_token")) return showLogin(); return toast("저장 실패: " + error.message); }
   r.paid=v; render(); toast(v ? "입금 확인 저장됨" : "입금 확인 취소됨");
 };
 
-// ── 로그인 ──
-async function enter(){
-  const { data: rooms, error } = await sb.from("rooms").select("*");
-  if(error || !rooms.length){ // 로그인은 됐지만 직원 목록에 없음
-    $("loginErr").textContent = "직원으로 등록되지 않은 계정입니다. 사장님께 등록을 요청하세요.";
-    $("loginErr").classList.remove("hidden"); await sb.auth.signOut(); return;
-  }
-  ROOMS = Object.fromEntries(rooms.map(x=>[x.name,x]));
-  $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden");
-  load();
+// ── 비밀번호 ──
+function showLogin(){
+  setToken(null); memToken = null;
+  $("main").classList.add("hidden"); $("loginBox").classList.remove("hidden");
+  $("pin").value = ""; $("pin").focus();
 }
-$("loginBox").onsubmit = async e=>{
-  e.preventDefault(); $("loginErr").classList.add("hidden");
-  $("loginBtn").disabled = true; $("loginBtn").textContent = "확인 중…";
-  const { error } = await sb.auth.signInWithPassword({ email:$("email").value.trim(), password:$("pw").value });
-  $("loginBtn").disabled = false; $("loginBtn").textContent = "로그인";
-  if(error){ $("loginErr").textContent = "이메일 또는 비밀번호가 맞지 않습니다."; $("loginErr").classList.remove("hidden"); return; }
-  enter();
-};
-$("logout").onclick = async ()=>{ await sb.auth.signOut(); location.reload(); };
+function showMain(){ $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden"); load(); }
 
-(async ()=>{
-  const { data } = await sb.auth.getSession();
-  if(data.session) enter(); else $("loginBox").classList.remove("hidden");
-})();
+async function tryLogin(){
+  const pin = $("pin").value;
+  if(!/^\d{4}$/.test(pin)) return;
+  $("loginErr").classList.add("hidden");
+  $("loginBtn").disabled = true; $("loginBtn").textContent = "확인 중…";
+  const { data, error } = await sb.rpc("staff_login", { p_pin: pin });
+  $("loginBtn").disabled = false; $("loginBtn").textContent = "확인";
+  if(error){ $("loginErr").textContent = error.message; $("loginErr").classList.remove("hidden"); $("pin").value=""; return; }
+  memToken = data; setToken(data); showMain();
+}
+$("loginBox").onsubmit = e => { e.preventDefault(); tryLogin(); };
+// 4자리를 다 누르면 자동 확인
+$("pin").oninput = e => { e.target.value = e.target.value.replace(/\D/g,"").slice(0,4); if(e.target.value.length===4) tryLogin(); };
+$("logout").onclick = async ()=>{ await sb.rpc("staff_logout", { p_token: memToken }); showLogin(); };
+
+if(memToken) showMain(); else showLogin();
 setInterval(()=>{ if(!$("main").classList.contains("hidden")) load(); }, 60000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && !$("main").classList.contains("hidden")) load(); });
 const tick = ()=>{ const d=new Date(); $("clock").textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
