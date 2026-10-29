@@ -172,6 +172,7 @@ function render(){
       <div class="row1"><span class="room">${esc(r.room)}</span>
         <span class="badge ${a?"ok":"wait"}">${a?"응답 완료":"미응답"}</span></div>
       <div class="who">${esc(r.guest_name||"")} · ${esc(r.channel||"")} · ${r.nights}박${ph ? ` · <a class="tel" href="tel:${esc(ph)}">📞 ${esc(ph)}</a>` : ` · <span class="nophone">안심번호(응답 전)</span>`}</div>
+      ${r.pms_memo ? `<div class="memo">📋 ${esc(r.pms_memo)}</div>` : ""}
       ${a ? `
         <div class="grid">
           <div><small>인원</small><b>${a.people}명</b></div>
