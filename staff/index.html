@@ -239,7 +239,8 @@ $("logout").onclick = async ()=>{ await sb.auth.signOut(); location.reload(); };
 })();
 setInterval(()=>{ if(!$("main").classList.contains("hidden")) load(); }, 60000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && !$("main").classList.contains("hidden")) load(); });
-setInterval(()=>{ const d=new Date(); $("clock").textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; },1000);
+const tick = ()=>{ const d=new Date(); $("clock").textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+tick(); setInterval(tick, 1000);
 </script>
 </body>
 </html>
