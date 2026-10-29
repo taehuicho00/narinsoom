@@ -116,18 +116,30 @@ let ROOMS = {};
 const EXTRA_PERSON_PER_NIGHT = 20000, PET_FEE = 20000, BBQ_BASE = 20000, BBQ_BASE_PEOPLE = 4, BBQ_EXTRA_PER_PERSON = 5000;
 
 // ── 추가요금 계산: pricing.py 와 같은 규칙 ──
+// 손님 응답이 우선, 없으면 방막기 메모에서 확실히 읽은 값 사용
+function known(r){
+  const a = r.answer;
+  return {
+    people: a ? a.people : r.memo_people,
+    pets: a ? a.pets : r.memo_pets,
+    bbq: a ? !!a.bbq : false,
+    fromMemo: !a,
+  };
+}
 function calcCharges(r){
-  const a = r.answer, out = [];
-  if(!a) return { items:[], total:0 };
+  const a = known(r), out = [];
+  if(a.people == null && a.pets == null) return { items:[], total:0 };
   const room = ROOMS[r.room] || { base_people:0, max_pets:0 };
-  const extra = Math.max(0, a.people - room.base_people);
+  const extra = a.people == null ? 0 : Math.max(0, a.people - room.base_people);
   if(extra) out.push([`추가 인원 ${extra}명${r.nights>1?` × ${r.nights}박`:""}`, extra*EXTRA_PERSON_PER_NIGHT*r.nights]);
   let error = null;
   if(a.pets){
     if(!room.max_pets) error = `${r.room}은 반려견 불가 객실인데 ${a.pets}마리로 응답 — 직접 확인 필요`;
     else out.push([`반려견 ${a.pets}마리`, a.pets*PET_FEE]);
   }
-  if(a.bbq){
+  if(a.bbq && r.bbq_prepaid){
+    out.push([`숯불 (결제 완료)`, 0]);
+  } else if(a.bbq){
     const over = Math.max(0, a.people - BBQ_BASE_PEOPLE);
     out.push([`숯불 (${a.people}인)`, BBQ_BASE + over*BBQ_EXTRA_PER_PERSON]); // 특이사항 없으면 1회
   }
@@ -184,7 +196,7 @@ function render(){
         if(real) return ` · <a class="tel" href="tel:${esc(real)}">📞 ${esc(real)}</a>`;
         if(r.pms_phone) return ` · <a class="tel" href="tel:${esc(r.pms_phone)}">📞 ${esc(r.pms_phone)}</a> <span class="nophone">(안심번호)</span>`;
         return ` · <span class="nophone">번호 없음</span>`; })()}</div>
-      ${r.source==="block" ? `<div class="memo blockmemo">📌 방막기 메모: ${esc(r.pms_memo||"")}${!a && r.memo_people ? `<br><b>메모 인원 ${r.memo_people}명</b>` : ""}</div>`
+      ${r.source==="block" ? `<div class="memo blockmemo">📌 방막기 메모: ${esc(r.pms_memo||"")}</div>`
         : r.pms_memo ? `<div class="memo">📋 ${esc(r.pms_memo)}</div>` : ""}
       ${a ? `
         <div class="grid">
@@ -204,7 +216,16 @@ function render(){
           ${r.paid ? "" : `<button class="btn ${r.fee_hold?"hold":""}" data-hold="${r.id}">${r.fee_hold?"⏸ 문자 보류 중":"추가요금 문자 보류"}</button>`}` : ""}
           <a class="btn link" href="${entryUrl}" target="_blank">내용 수정</a>
         </div>
-      ` : `<div class="memo">아직 손님 응답이 없습니다.${callNow?" 전화로 확인 후 직접 입력해 주세요.":""}</div>
+      ` : `${(r.memo_people != null || r.bbq_prepaid) ? `
+        <div class="grid">
+          <div><small>인원</small><b>${r.memo_people != null ? r.memo_people+"명" : "—"}</b></div>
+          <div><small>반려견</small><b>${r.memo_pets == null ? "—" : r.memo_pets ? r.memo_pets+"마리" : "없음"}</b></div>
+          <div><small>입실</small><b>미정</b></div>
+          <div><small>숯불</small><b>${r.bbq_prepaid ? "결제 완료" : "—"}</b></div>
+        </div>
+        ${(()=>{ const c2 = calcCharges(r); return c2.items.length ? `<div class="fee">${c2.items.map(([l,v])=>`<div class="line"><span>${l}</span><span>${won(v)}</span></div>`).join("")}<div class="tot"><span>메모 기준 추가요금</span><span>${won(c2.total)}</span></div></div>` : ""; })()}
+        <div class="memo">메모로 확인된 내용입니다. 입실 시간 등은 손님 응답을 기다리는 중입니다.</div>` :
+        `<div class="memo">아직 손님 응답이 없습니다.${callNow?" 전화로 확인 후 직접 입력해 주세요.":""}</div>`}
         <div class="actions"><a class="btn link primary" href="${entryUrl}" target="_blank">✏️ 직접 입력</a></div>`}
     </div>`;
   }).join("");

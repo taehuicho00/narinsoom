@@ -91,7 +91,8 @@ function notFound(){
   if(error || !data || !data.length) return notFound();
   const d = data[0];
   start({ room:d.room, checkin:d.checkin, nights:d.nights, needPhone:d.need_phone,
-          answered:d.answered, max:d.max_people, petMax:d.max_pets });
+          answered:d.answered, max:d.max_people, petMax:d.max_pets,
+          memoPeople:d.memo_people, memoPets:d.memo_pets, bbqPrepaid:d.bbq_prepaid });
 })();
 
 function start(rsv){
@@ -111,6 +112,9 @@ function start(rsv){
   const ANNEX_WARN = rsv.room==="별채"
     ? `<div class="warn">⚠️ 별채는 본채와 주소가 다릅니다!<br>본채(용문산로 340-21)가 아닌 아래 주소로 바로 와 주세요.</div>` : "";
   const state = { people:null, pet:null, time:null, bbq:null, memo:"", phone:"", agree:false };
+  // 사장님이 이미 받아 둔 정보(전화·계좌이체 예약)는 미리 선택해 둠
+  if(rsv.memoPeople >= 2 && rsv.memoPeople <= R.max) state.people = String(rsv.memoPeople);
+  if(rsv.memoPets != null && rsv.memoPets <= R.petMax) state.pet = String(rsv.memoPets);
   // 010-1234-5678 형식만 인정
   const phoneOk = () => /^01[016789]-\d{3,4}-\d{4}$/.test(state.phone);
   const custom = { time:"", bbq:"" }; // '직접 입력'으로 넣은 시간
@@ -153,7 +157,7 @@ function start(rsv){
       </div>
       <input type="time" id="bbqIn" class="hidden timein" min="17:00" max="20:00" step="300">
       <div id="bbqErr" class="hidden err">숯불은 17:00~20:00 사이로 선택해 주세요.</div>
-      <div class="hint">${R.selfCheckin ? "별채 숯불은 직접 불을 붙여 사용하시는 방식입니다." : "원하시는 시간에 맞춰 준비해 드립니다."}</div>
+      <div class="hint">${rsv.bbqPrepaid ? "<b>숯불 비용은 이미 결제하셨습니다.</b> 이용 시간만 골라 주세요. " : ""}${R.selfCheckin ? "별채 숯불은 직접 불을 붙여 사용하시는 방식입니다." : "원하시는 시간에 맞춰 준비해 드립니다."}</div>
     </div>
 
     ${rsv.needPhone ? `<div class="card">
