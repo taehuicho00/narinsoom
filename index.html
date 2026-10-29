@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나린숨 입실 정보</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--bg:#f6f3ee;--card:#fff;--ink:#2b2a27;--sub:#7a756c;--line:#e6e0d6;--accent:#3f6b4f;--accent-soft:#e7efe9;}
+  @media (prefers-color-scheme: dark){:root{--bg:#1c1c1a;--card:#262624;--ink:#eeeae2;--sub:#a8a296;--line:#3a3935;--accent:#7fb08f;--accent-soft:#2c3a30;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Apple SD Gothic Neo","Pretendard","Noto Sans KR",sans-serif;line-height:1.5}
+  .wrap{max-width:440px;margin:0 auto;padding:24px 16px 48px}
+  .brand{font-size:13px;letter-spacing:.2em;color:var(--sub)}
+  h1{font-size:24px;margin:4px 0 2px}
+  .meta{color:var(--sub);font-size:15px;margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+  .q{font-weight:600;margin-bottom:10px}
+  .hint{font-size:13px;color:var(--sub);margin-top:6px}
+  .stepper{display:flex;align-items:center;gap:16px}
+  .stepper button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:22px}
+  .stepper .n{font-size:22px;font-weight:700;min-width:60px;text-align:center}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .info{background:var(--accent-soft);border-radius:12px;padding:14px;font-size:14px}
+  .info b{display:block;margin-bottom:4px}
+  .submit{width:100%;padding:16px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:17px;font-weight:700;margin-top:6px}
+  .submit:disabled{opacity:.4}
+  .done{text-align:center;padding:40px 10px}
+  .done .big{font-size:48px}
+  .demo{margin-top:30px;font-size:12px;color:var(--sub);text-align:center}
+  .demo a{color:var(--sub);margin:0 4px}
+  .agree{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px}
+  .agree input{width:20px;height:20px}
+  .more{margin-left:auto;border:0;background:none;color:var(--sub);text-decoration:underline;font-size:12px}
+  .agreetxt{margin-top:8px;font-size:12px;color:var(--sub);background:var(--bg);border-radius:10px;padding:10px}
+  .err{color:#c0392b;font-size:13px;margin-top:6px}
+  .chips.grid{display:grid;grid-template-columns:repeat(4,1fr)}
+  .chips.grid .chip{padding:10px 0;text-align:center}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10;animation:fade .2s}
+  .sheet{background:var(--card);width:100%;max-width:440px;border-radius:22px 22px 0 0;padding:28px 20px 24px;text-align:center;animation:up .25s ease-out}
+  .sheet h2{margin:6px 0 4px}
+  .sheet p{color:var(--sub);margin:0 0 14px}
+  .addr{background:var(--bg);border-radius:12px;padding:12px;font-size:15px;margin-bottom:14px}
+  .warn{background:#fdecea;color:#c0392b;border:1.5px solid #c0392b;border-radius:12px;padding:12px;font-weight:700;font-size:15px;margin:12px 0}
+  .copy{display:block;margin:10px auto 0;padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:14px}
+  .copy.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .addr small{display:block;color:var(--sub);margin-top:4px}
+  .mapbtn{display:block;padding:16px;border-radius:14px;background:#03c75a;color:#fff;font-weight:700;font-size:17px;text-decoration:none;margin-top:12px}
+  .close{margin-top:10px;width:100%;padding:12px;border:0;background:none;color:var(--sub);font-size:15px}
+  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .hidden{display:none !important}
+  .timein{margin-top:10px;width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:17px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script>
+// ── 객실 설정: 호실마다 다른 질문·안내를 여기서 결정 ──
+const ROOMS = {
+  // max: 인원 버튼 최대값, petMax: 반려견 최대 마리 수 (0이면 질문 자체를 숨김)
+  "1호실": { base:4, max:8, petMax:0, selfCheckin:false, addr:"경기 양평군 용문면 용문산로 340-21", map:"https://naver.me/F16I4OqD" },
+  "2호실": { base:2, max:4, petMax:4, selfCheckin:false, addr:"경기 양평군 용문면 용문산로 340-21", map:"https://naver.me/F16I4OqD" },
+  "3호실": { base:2, max:3, petMax:4, selfCheckin:false, addr:"경기 양평군 용문면 용문산로 340-21", map:"https://naver.me/F16I4OqD" },
+  "4호실": { base:2, max:3, petMax:4, selfCheckin:false, addr:"경기 양평군 용문면 용문산로 340-21", map:"https://naver.me/F16I4OqD" },
+  "별채":  { base:4, max:8, petMax:0, selfCheckin:true, addr:"경기 양평군 용문면 용문산로 148-6", map:"https://naver.me/IMZXGeHx" },
+};
+
+const code = new URLSearchParams(location.search).get("c");
+const app = document.getElementById("app");
+const sb = supabase.createClient(CONFIG.url, CONFIG.key);
+
+function fmtDate(s){ const d=new Date(s+"T00:00:00"); return `${d.getMonth()+1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]})`; }
+function notFound(){
+  app.innerHTML = `<div class="card done"><div class="big">🔍</div><p>예약 정보를 찾을 수 없습니다.<br>문자로 받은 링크를 다시 눌러 주세요.<br><br>문의: <a href="tel:${CONFIG.phone}">${CONFIG.phone}</a></p></div>`;
+}
+
+// 링크의 코드로 예약 기본 정보만 조회 (이름·번호 등은 받지 않음)
+(async () => {
+  if(!code) return notFound();
+  app.innerHTML = `<div class="card done"><p>불러오는 중…</p></div>`;
+  const { data, error } = await sb.rpc("get_reservation", { p_code: code });
+  if(error || !data || !data.length) return notFound();
+  const d = data[0];
+  start({ room:d.room, checkin:d.checkin, nights:d.nights, needPhone:d.need_phone,
+          answered:d.answered, max:d.max_people, petMax:d.max_pets });
+})();
+
+function start(rsv){
+  // 인원·반려견 한도는 DB 값을 우선 사용 (DB와 화면 기준을 하나로)
+  const R = { ...ROOMS[rsv.room], max: rsv.max, petMax: rsv.petMax };
+  // 입실 시간 선택지: 별채는 셀프 체크인이라 늦은 시간까지
+  // 30분 단위 시간 목록 만들기 (예: 15:00 ~ 21:00)
+  const slots = (from, to) => { const a=[]; for(let m=from*60; m<=to*60; m+=30) a.push(`${String(Math.floor(m/60)).padStart(2,"0")}:${m%60?"30":"00"}`); return a; };
+  // 입실 15:00~21:00, 숯불 17:00~20:00 (모든 객실 동일)
+  const times = slots(15,21);
+  const bbqTimes = slots(17,20);
+  const LIMIT = { time:["15:00","21:00"], bbq:["17:00","20:00"] };
+  // 미리 선택해 두지 않음: 손님이 확인 없이 넘어가는 실수 방지
+  const range = (a,b) => Array.from({length:b-a+1}, (_,i)=>a+i);
+  R.pet = R.petMax > 0;
+  // 별채 손님에게만 보이는 빨간 경고 (본채 주소로 잘못 찾아오는 일 방지)
+  const ANNEX_WARN = rsv.room==="별채"
+    ? `<div class="warn">⚠️ 별채는 본채와 주소가 다릅니다!<br>본채(용문산로 340-21)가 아닌 아래 주소로 바로 와 주세요.</div>` : "";
+  const state = { people:null, pet:null, time:null, bbq:null, memo:"", phone:"", agree:false };
+  // 010-1234-5678 형식만 인정
+  const phoneOk = () => /^01[016789]-\d{3,4}-\d{4}$/.test(state.phone);
+  const custom = { time:"", bbq:"" }; // '직접 입력'으로 넣은 시간
+
+  app.innerHTML = `
+    <div class="brand">NARINSOOM</div>
+    <h1>${rsv.room} 입실 정보</h1>
+    <div class="meta">${fmtDate(rsv.checkin)} 입실 · ${rsv.nights}박</div>
+    ${rsv.answered ? `<div class="card" style="background:var(--accent-soft)">이미 제출해 주셨어요. 바뀐 내용이 있으면 다시 제출하시면 수정됩니다.</div>` : ""}
+
+    <div class="card">
+      <div class="q">입실 인원 (아이 포함)</div>
+      <div class="chips" data-key="people">${range(2, R.max).map(n=>`<button class="chip" data-v="${n}">${n}명</button>`).join("")}</div>
+      <div class="hint">이부자리 준비에 사용됩니다.</div>
+    </div>
+
+    ${R.pet ? `
+    <div class="card">
+      <div class="q">반려견 동반</div>
+      <div class="chips" data-key="pet">
+        <button class="chip" data-v="0">없음</button>${range(1, R.petMax).map(n=>`<button class="chip" data-v="${n}">${n}마리</button>`).join("")}
+      </div>
+    </div>` : ``}
+
+    <div class="card">
+      <div class="q">입실 예정 시간</div>
+      <div class="chips grid" data-key="time">${times.map(t=>`<button class="chip" data-v="${t}">${t}</button>`).join("")}<button class="chip" data-v="직접" data-custom="timeIn">직접 입력</button></div>
+      <input type="time" id="timeIn" class="hidden timein" min="15:00" max="21:00" step="300">
+      <div id="timeErr" class="hidden err">입실은 15:00~21:00 사이로 선택해 주세요.</div>
+      <div class="hint">${R.selfCheckin ? "별채는 셀프 체크인입니다 · 입실 마감 21:00" : "입실 마감 21:00 (늦어지면 미리 연락 부탁드립니다)"}</div>
+    </div>
+
+    <div class="card">
+      <div class="q">숯불 이용</div>
+      <div class="chips grid" data-key="bbq">
+        <button class="chip" data-v="안 함">안 함</button>
+        ${bbqTimes.map(t=>`<button class="chip" data-v="${t}">${t}</button>`).join("")}
+        <button class="chip" data-v="직접" data-custom="bbqIn">직접 입력</button>
+      </div>
+      <input type="time" id="bbqIn" class="hidden timein" min="17:00" max="20:00" step="300">
+      <div id="bbqErr" class="hidden err">숯불은 17:00~20:00 사이로 선택해 주세요.</div>
+      <div class="hint">${R.selfCheckin ? "별채 숯불은 직접 불을 붙여 사용하시는 방식입니다." : "원하시는 시간에 맞춰 준비해 드립니다."}</div>
+    </div>
+
+    ${rsv.needPhone ? `<div class="card">
+      <div class="q">연락받으실 휴대폰 번호</div>
+      <input type="tel" id="phone" class="timein" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000" maxlength="13">
+      <div id="phoneErr" class="hidden err">휴대폰 번호를 정확히 입력해 주세요.</div>
+      <div class="hint">예약 사이트 번호는 안심번호라 연락이 닿지 않을 때가 있어요.</div>
+      <label class="agree"><input type="checkbox" id="agree"> 개인정보 수집·이용에 동의합니다 <button type="button" class="more" id="moreBtn">내용 보기</button></label>
+      <div id="agreeTxt" class="hidden agreetxt">수집 항목: 휴대폰 번호, 입실 인원·시간 등 응답 내용<br>목적: 입실 안내 및 추가요금 안내 연락<br>보유 기간: 퇴실 후 30일까지 보관 후 삭제<br>동의하지 않으실 수 있으나, 이 경우 제출이 어렵습니다. 전화(010-9455-9321)로 알려 주셔도 됩니다.</div>
+    </div>` : ``}
+
+    <div class="card">
+      <div class="q">요청사항 (선택)</div>
+      <textarea id="memo" placeholder="예: 아이 2명 포함, 늦게 도착할 수 있어요"></textarea>
+    </div>
+
+    <button class="submit" id="submit" disabled>제출하기</button>
+      `;
+
+  const $ = id => document.getElementById(id);
+  const render = () => {
+    document.querySelectorAll(".chips").forEach(g=>{
+      g.querySelectorAll(".chip").forEach(c=>c.classList.toggle("on", String(state[g.dataset.key])===c.dataset.v));
+    });
+    // '직접 입력'을 고른 경우에만 시간 입력칸 표시
+    $("timeIn").classList.toggle("hidden", state.time!=="직접");
+    $("bbqIn").classList.toggle("hidden", state.bbq!=="직접");
+    // 직접 입력한 시간은 허용 범위 안일 때만 인정 ("HH:MM" 문자열은 크기 비교 가능)
+    const inRange = k => custom[k] && custom[k]>=LIMIT[k][0] && custom[k]<=LIMIT[k][1];
+    const filled = k => state[k] && (state[k]!=="직접" || inRange(k));
+    $("timeErr").classList.toggle("hidden", !(state.time==="직접" && custom.time && !inRange("time")));
+    $("bbqErr").classList.toggle("hidden", !(state.bbq==="직접" && custom.bbq && !inRange("bbq")));
+    // 필수 항목이 다 채워져야 제출 가능
+    if(rsv.needPhone) $("phoneErr").classList.toggle("hidden", state.phone.length<13 || phoneOk());
+    // 번호가 필요한 손님만 번호·동의를 필수로 확인
+    const phoneDone = !rsv.needPhone || (phoneOk() && state.agree);
+    const ok = state.people && filled("time") && filled("bbq") && (!R.pet || state.pet!==null) && phoneDone;
+    $("submit").disabled = !ok;
+  };
+
+  document.querySelectorAll(".chips").forEach(g=>{
+    g.addEventListener("click", e=>{
+      const c = e.target.closest(".chip"); if(!c) return;
+      state[g.dataset.key] = c.dataset.v;
+      render();
+      // 직접 입력을 누르면 바로 휠/다이얼이 열리도록
+      if(c.dataset.custom){ const el=$(c.dataset.custom); el.focus(); el.showPicker && el.showPicker(); }
+    });
+  });
+  $("timeIn").oninput = e => { custom.time = e.target.value; render(); };
+  $("bbqIn").oninput  = e => { custom.bbq  = e.target.value; render(); };
+  $("memo").oninput = e => state.memo = e.target.value;
+  // 숫자만 입력해도 자동으로 하이픈(-) 넣기
+  if(rsv.needPhone){
+  $("phone").oninput = e => {
+    const d = e.target.value.replace(/\D/g,"").slice(0,11);
+    e.target.value = d.length<4 ? d : d.length<8 ? `${d.slice(0,3)}-${d.slice(3)}` : `${d.slice(0,3)}-${d.slice(3,d.length-4)}-${d.slice(-4)}`;
+    state.phone = e.target.value; render();
+  };
+  $("agree").onchange = e => { state.agree = e.target.checked; render(); };
+  $("moreBtn").onclick = () => $("agreeTxt").classList.toggle("hidden");
+  }
+
+  $("submit").onclick = async ()=>{
+    const btn = $("submit");
+    btn.disabled = true; btn.textContent = "저장 중…";
+    const t = state.time==="직접" ? custom.time : state.time;
+    const q = state.bbq==="직접" ? custom.bbq : state.bbq;
+    // 서버에서 한 번 더 검증 후 저장 (화면 조작으로 잘못된 값이 들어가지 않게)
+    const { error } = await sb.rpc("submit_response", {
+      p_code: code,
+      p_people: Number(state.people),
+      p_pets: R.pet ? Number(state.pet) : 0,
+      p_checkin_time: t,
+      p_bbq_time: q==="안 함" ? null : q,
+      p_memo: state.memo || null,
+      p_phone: rsv.needPhone ? state.phone : null,
+      p_agree: rsv.needPhone ? state.agree : false,
+    });
+    if(error){
+      btn.disabled = false; btn.textContent = "제출하기";
+      alert("저장하지 못했습니다: " + (error.message || "잠시 후 다시 시도해 주세요") + `\n문의: ${CONFIG.phone}`);
+      return;
+    }
+    // 뒤 화면: 완료 카드 (팝업을 닫아도 지도 버튼은 계속 보이게)
+    app.innerHTML = `<div class="card done"><div class="big">🌿</div>
+      <h2>제출 완료</h2><p>${rsv.room} 입실 준비에 반영하겠습니다.<br>내용을 바꾸고 싶으시면 같은 링크로 다시 제출해 주세요.</p>
+      ${ANNEX_WARN}<a class="mapbtn" href="${R.map}">네이버 지도로 길찾기</a></div>`;
+    // 팝업: 감사 인사 + 주소 + 지도 버튼
+    const m = document.createElement("div");
+    m.className = "modal";
+    m.innerHTML = `<div class="sheet">
+      <div class="big">🌿</div>
+      <h2>감사합니다!</h2>
+      <p>${fmtDate(rsv.checkin)} ${rsv.room}에서 뵙겠습니다.</p>
+      ${ANNEX_WARN}
+      <div class="addr">${R.addr}<button class="copy" id="copyAddr">주소 복사</button>${rsv.room==="별채" ? "<small>계곡·사우나는 본채에서 이용하실 수 있습니다 (차로 3분)</small>" : ""}</div>
+      <a class="mapbtn" href="${R.map}">네이버 지도로 길찾기</a>
+      <button class="close" id="closeModal">닫기</button>
+    </div>`;
+    document.body.appendChild(m);
+    m.onclick = e => { if(e.target===m || e.target.id==="closeModal") m.remove(); };
+    // 주소 복사: 지원 안 되는 브라우저는 예전 방식으로 복사
+    $("copyAddr").onclick = async e => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      try { await navigator.clipboard.writeText(R.addr); }
+      catch { const t=document.createElement("textarea"); t.value=R.addr; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+      btn.textContent = "복사됨 ✓"; btn.classList.add("ok");
+      setTimeout(()=>{ btn.textContent="주소 복사"; btn.classList.remove("ok"); }, 1500);
+    };
+  };
+
+  render();
+}
+</script>
+</body>
+</html>
