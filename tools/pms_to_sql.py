@@ -2,7 +2,7 @@
 
 입력: 예약 목록 표의 각 행 [예약번호, 예약자정보, 객실명, 체크인, 체크아웃, 채널, 메모, 상태, 금액]
 - 예약완료만 넣고, 같은 예약번호(pms_id)가 이미 있으면 정보만 갱신 (링크 코드는 유지)
-- 050 안심번호이거나 번호가 없으면 need_phone = true (손님 화면에서 번호를 받음)
+- 050 안심번호이거나 번호가 없으면 need_phone = true (손님 화면에서 실번호를 받음, 안심번호도 저장해 직원이 전화 가능)
 - 이름은 그대로 저장 (직원 화면은 비밀번호로 보호)
 """
 import json, re, secrets, sys
@@ -22,13 +22,14 @@ def clean_name(name):
     return re.sub(r"\(.*?\)", "", name).strip()
 
 def phone(raw):
-    """실번호면 010-xxxx-xxxx 형식으로, 안심번호·없음이면 None"""
+    """(표시용 번호, 안심번호 여부). 안심번호도 예약 기간엔 전화가 되므로 저장해 둠."""
     d = re.sub(r"\D", "", raw or "")
     if d.startswith("82"): d = "0" + d[2:]          # 해외채널: 8210... → 010...
-    if d.startswith("050") or len(d) < 10: return None
+    if d.startswith("050") and len(d) in (11, 12):
+        return f"{d[:4]}-{d[4:-4]}-{d[-4:]}", True   # 0503-5090-0313
     if d.startswith("01") and len(d) in (10, 11):
-        return f"{d[:3]}-{d[3:-4]}-{d[-4:]}"
-    return None
+        return f"{d[:3]}-{d[3:-4]}-{d[-4:]}", False
+    return None, True                                  # 번호 없음 → 손님 화면에서 받음
 
 def q(v):
     return "null" if v is None else "'" + str(v).replace("'", "''") + "'"
@@ -42,9 +43,9 @@ def to_sql(rows):
         name, _, ph = r[1].partition(" · ")
         nights = max(1, (date.fromisoformat(r[4]) - date.fromisoformat(r[3])).days)
         memo = None if r[6].strip() in ("", "-") else r[6].strip()
-        p = phone(ph)
+        p, safe = phone(ph)
         vals.append(f"({q(r[0])}, {q(new_code())}, {q(room)}, {q(r[3])}, {nights}, {q(clean_name(name))}, "
-                    f"{q(r[5].split(' · ')[0])}, {q(p)}, {str(p is None).lower()}, {q(memo)})")
+                    f"{q(r[5].split(' · ')[0])}, {q(p)}, {str(safe).lower()}, {q(memo)})")
     return ("insert into public.reservations (pms_id, code, room, checkin, nights, guest_name, channel, pms_phone, need_phone, pms_memo) values\n  "
             + ",\n  ".join(vals) +
             "\non conflict (pms_id) do update set room = excluded.room, checkin = excluded.checkin, nights = excluded.nights,\n"

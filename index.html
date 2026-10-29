@@ -73,6 +73,8 @@ const ROOMS = {
 };
 
 const code = new URLSearchParams(location.search).get("c");
+// 직원이 전화로 확인한 내용을 대신 입력하는 경우 (?staff=1)
+const STAFF_MODE = new URLSearchParams(location.search).get("staff") === "1";
 const app = document.getElementById("app");
 const sb = supabase.createClient(CONFIG.url, CONFIG.key);
 
@@ -117,6 +119,7 @@ function start(rsv){
     <div class="brand">NARINSOOM</div>
     <h1>${rsv.room} 입실 정보</h1>
     <div class="meta">${fmtDate(rsv.checkin)} 입실 · ${rsv.nights}박</div>
+    ${STAFF_MODE ? `<div class="card" style="background:#fff4e5;color:#8a5300;font-weight:600">직원 대리 입력 중 · 전화로 확인한 내용을 입력하세요</div>` : ""}
     ${rsv.answered ? `<div class="card" style="background:var(--accent-soft)">이미 제출해 주셨어요. 바뀐 내용이 있으면 다시 제출하시면 수정됩니다.</div>` : ""}
 
     <div class="card">
@@ -233,6 +236,12 @@ function start(rsv){
     if(error){
       btn.disabled = false; btn.textContent = "제출하기";
       alert("저장하지 못했습니다: " + (error.message || "잠시 후 다시 시도해 주세요") + `\n문의: ${CONFIG.phone}`);
+      return;
+    }
+    if(STAFF_MODE){  // 직원은 손님용 감사 팝업 대신 저장 확인만
+      app.innerHTML = `<div class="card done"><div class="big">✅</div><h2>저장했습니다</h2>
+        <p>${rsv.room} 응답이 직원 화면에 반영됐습니다.<br>이 창을 닫고 직원 화면으로 돌아가세요.</p>
+        <button class="submit" onclick="window.close()">창 닫기</button></div>`;
       return;
     }
     // 뒤 화면: 완료 카드 (팝업을 닫아도 지도 버튼은 계속 보이게)

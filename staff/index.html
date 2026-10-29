@@ -49,6 +49,11 @@
   .grid b{font-size:15px}
   .tel{color:var(--accent);font-weight:600;text-decoration:none}
   .nophone{color:var(--warn)}
+  .card.call{border-left-color:var(--bad)}
+  .badge.call{background:#fdecea;color:var(--bad)}
+  .btn.hold{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+  .btn.link{text-align:center;text-decoration:none;display:block}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
   .memo{margin-top:8px;font-size:13px;background:var(--bg);border-radius:10px;padding:8px 10px}
   .fee{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px;font-size:13px}
   .fee .line{display:flex;justify-content:space-between;color:var(--sub)}
@@ -167,11 +172,17 @@ function render(){
 
   $("list").innerHTML = shown.map(r=>{
     const a = r.answer, c = calcCharges(r);
-    const ph = r.pms_phone || a?.phone;
-    return `<div class="card ${a?"done":"pending"}">
+    // 입실 당일 13시가 지나도 미응답이면 직원이 전화
+    const callNow = !a && r.checkin===todayStr && new Date().getHours() >= 13;
+    const entryUrl = `../?c=${encodeURIComponent(r.code)}&staff=1`;
+    return `<div class="card ${a?"done":"pending"} ${callNow?"call":""}">
       <div class="row1"><span class="room">${esc(r.room)}</span>
-        <span class="badge ${a?"ok":"wait"}">${a?"응답 완료":"미응답"}</span></div>
-      <div class="who">${esc(r.guest_name||"")} · ${r.nights}박${ph ? ` · <a class="tel" href="tel:${esc(ph)}">📞 ${esc(ph)}</a>` : ` · <span class="nophone">안심번호(응답 전)</span>`}</div>
+        <span class="badge ${a?"ok":callNow?"call":"wait"}">${a?"응답 완료":callNow?"📞 전화 필요":"미응답"}</span></div>
+      <div class="who">${esc(r.guest_name||"")} · ${r.nights}박${(()=>{ // 손님이 준 실번호 > PMS 실번호 > 안심번호 순
+        const real = a?.phone || (!r.need_phone && r.pms_phone);
+        if(real) return ` · <a class="tel" href="tel:${esc(real)}">📞 ${esc(real)}</a>`;
+        if(r.pms_phone) return ` · <a class="tel" href="tel:${esc(r.pms_phone)}">📞 ${esc(r.pms_phone)}</a> <span class="nophone">(안심번호)</span>`;
+        return ` · <span class="nophone">번호 없음</span>`; })()}</div>
       ${r.pms_memo ? `<div class="memo">📋 ${esc(r.pms_memo)}</div>` : ""}
       ${a ? `
         <div class="grid">
@@ -186,8 +197,13 @@ function render(){
           ${c.items.length ? c.items.map(([l,v])=>`<div class="line"><span>${l}</span><span>${won(v)}</span></div>`).join("") : `<div class="line"><span>추가요금 없음</span><span>0원</span></div>`}
           ${c.items.length?`<div class="tot"><span>추가요금 합계</span><span>${won(c.total)}</span></div>`:""}
         </div>
-        ${c.total ? `<div class="actions"><button class="btn ${r.paid?"paid":""}" data-pay="${r.id}">${r.paid?"✓ 입금 확인됨":"입금 확인"}</button></div>`:""}
-      ` : `<div class="memo">아직 손님 응답이 없습니다.</div>`}
+        <div class="actions">
+          ${c.total ? `<button class="btn ${r.paid?"paid":""}" data-pay="${r.id}">${r.paid?"✓ 입금 확인됨":"입금 확인"}</button>
+          ${r.paid ? "" : `<button class="btn ${r.fee_hold?"hold":""}" data-hold="${r.id}">${r.fee_hold?"⏸ 문자 보류 중":"추가요금 문자 보류"}</button>`}` : ""}
+          <a class="btn link" href="${entryUrl}" target="_blank">내용 수정</a>
+        </div>
+      ` : `<div class="memo">아직 손님 응답이 없습니다.${callNow?" 전화로 확인 후 직접 입력해 주세요.":""}</div>
+        <div class="actions"><a class="btn link primary" href="${entryUrl}" target="_blank">✏️ 직접 입력</a></div>`}
     </div>`;
   }).join("");
 }
@@ -216,6 +232,13 @@ $("filter").onclick = e=>{
 };
 // 입금 확인 토글 → DB 저장
 $("list").onclick = async e=>{
+  const hold=e.target.closest("[data-hold]");
+  if(hold){
+    const r=DATA.find(x=>x.id===hold.dataset.hold); const v=!r.fee_hold;
+    const { error } = await sb.rpc("staff_set_hold", { p_token: memToken, p_id: r.id, p_hold: v });
+    if(error){ if(String(error.message).includes("invalid_token")) return showLogin(); return toast("저장 실패: " + error.message); }
+    r.fee_hold=v; render(); return toast(v ? "20시 추가요금 문자에서 제외합니다" : "보류를 풀었습니다");
+  }
   const pay=e.target.closest("[data-pay]"); if(!pay) return;
   const r=DATA.find(x=>x.id===pay.dataset.pay); const v=!r.paid;
   const { error } = await sb.rpc("staff_set_paid", { p_token: memToken, p_id: r.id, p_paid: v });
