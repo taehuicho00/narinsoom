@@ -54,6 +54,7 @@
   .btn.hold{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
   .btn.link{text-align:center;text-decoration:none;display:block}
   .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  .blockmemo{background:#fff4e5;color:#6b4a00}
   .memo{margin-top:8px;font-size:13px;background:var(--bg);border-radius:10px;padding:8px 10px}
   .fee{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px;font-size:13px}
   .fee .line{display:flex;justify-content:space-between;color:var(--sub)}
@@ -178,12 +179,13 @@ function render(){
     return `<div class="card ${a?"done":"pending"} ${callNow?"call":""}">
       <div class="row1"><span class="room">${esc(r.room)}</span>
         <span class="badge ${a?"ok":callNow?"call":"wait"}">${a?"응답 완료":callNow?"📞 전화 필요":"미응답"}</span></div>
-      <div class="who">${esc(r.guest_name||"")} · ${r.nights}박${(()=>{ // 손님이 준 실번호 > PMS 실번호 > 안심번호 순
+      <div class="who">${esc(r.guest_name|| (r.source==="block" ? "이름 미기재" : ""))} · ${r.nights}박${(()=>{ // 손님이 준 실번호 > PMS 실번호 > 안심번호 순
         const real = a?.phone || (!r.need_phone && r.pms_phone);
         if(real) return ` · <a class="tel" href="tel:${esc(real)}">📞 ${esc(real)}</a>`;
         if(r.pms_phone) return ` · <a class="tel" href="tel:${esc(r.pms_phone)}">📞 ${esc(r.pms_phone)}</a> <span class="nophone">(안심번호)</span>`;
         return ` · <span class="nophone">번호 없음</span>`; })()}</div>
-      ${r.pms_memo ? `<div class="memo">📋 ${esc(r.pms_memo)}</div>` : ""}
+      ${r.source==="block" ? `<div class="memo blockmemo">📌 방막기 메모: ${esc(r.pms_memo||"")}${!a && r.memo_people ? `<br><b>메모 인원 ${r.memo_people}명</b>` : ""}</div>`
+        : r.pms_memo ? `<div class="memo">📋 ${esc(r.pms_memo)}</div>` : ""}
       ${a ? `
         <div class="grid">
           <div><small>인원</small><b>${a.people}명</b></div>
