@@ -192,6 +192,7 @@ function render(){
       <div class="row1"><span class="room">${esc(r.room)}</span>
         <span class="badge ${a?"ok":callNow?"call":"wait"}">${a?"응답 완료":callNow?"📞 전화 필요":"미응답"}</span></div>
       <div class="who">${esc(r.guest_name|| (r.source==="block" ? "이름 미기재" : ""))} · ${r.nights}박${(()=>{ // 손님이 준 실번호 > PMS 실번호 > 안심번호 순
+        if(r.contact_phone) return ` · <a class="tel" href="tel:${esc(r.contact_phone)}">📞 ${esc(r.contact_phone)}</a>${r.contact_name ? ` (${esc(r.contact_name)})` : ""}`;
         const real = a?.phone || (!r.need_phone && r.pms_phone);
         if(real) return ` · <a class="tel" href="tel:${esc(real)}">📞 ${esc(real)}</a>`;
         if(r.pms_phone) return ` · <a class="tel" href="tel:${esc(r.pms_phone)}">📞 ${esc(r.pms_phone)}</a> <span class="nophone">(안심번호)</span>`;
