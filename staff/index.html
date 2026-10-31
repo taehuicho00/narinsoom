@@ -113,7 +113,7 @@ const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&
 
 // ── 요금표: narinsum_bot/config.py 와 동일 (기준 인원·반려견 가능 여부는 DB rooms 표에서 읽음) ──
 let ROOMS = {};
-const EXTRA_PERSON_PER_NIGHT = 20000, PET_FEE = 20000, BBQ_BASE = 20000, BBQ_BASE_PEOPLE = 4, BBQ_EXTRA_PER_PERSON = 5000;
+const EXTRA_PERSON_PER_NIGHT = 20000, PET_FEE = 20000, BBQ_BASE = 20000, BBQ_BASE_PEOPLE = 4, BBQ_EXTRA_PER_PERSON = 5000, BBQ_MAX = 40000;
 
 // ── 추가요금 계산: pricing.py 와 같은 규칙 ──
 // 손님 응답이 우선, 없으면 방막기 메모에서 확실히 읽은 값 사용
@@ -141,7 +141,7 @@ function calcCharges(r){
     out.push([`숯불 (결제 완료)`, 0]);
   } else if(a.bbq){
     const over = Math.max(0, a.people - BBQ_BASE_PEOPLE);
-    out.push([`숯불 (${a.people}인)`, BBQ_BASE + over*BBQ_EXTRA_PER_PERSON]); // 특이사항 없으면 1회
+    out.push([`숯불 (${a.people}인)`, Math.min(BBQ_BASE + over*BBQ_EXTRA_PER_PERSON, BBQ_MAX)]); // 특이사항 없으면 1회, 최대 4만원
   }
   return { items:out, total:out.reduce((s,[,v])=>s+v,0), error };
 }
