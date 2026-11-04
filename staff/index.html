@@ -17,6 +17,15 @@
   .weekbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
   .nav{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:20px}
   .week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px}
+  .viewtabs{display:flex;gap:6px;margin-bottom:10px}
+  .vt{flex:1;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:600}
+  .vt.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .weekhead{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:11px;color:var(--sub);text-align:center;margin-bottom:4px}
+  .weekhead .sat{color:#3b6fb6} .weekhead .sun{color:var(--bad)}
+  .week.month .day{padding:6px 0}
+  .week.month .day small{display:none}
+  .week.month .day b{font-size:14px}
+  .day.out{opacity:.35}
   .day{padding:8px 0;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-align:center;position:relative}
   .day small{display:block;font-size:11px;color:var(--sub)}
   .day b{font-size:16px}
@@ -91,7 +100,9 @@
 <div class="wrap hidden" id="main">
   <div class="top"><div class="brand">NARINSOOM · STAFF</div><div><span class="brand" id="clock"></span> <button class="logout" id="logout">잠금</button></div></div>
   <h1>입실 현황</h1>
+  <div class="viewtabs" id="viewtabs"><button class="vt on" data-v="week">주</button><button class="vt" data-v="month">월</button></div>
   <div class="weekbar"><button class="nav" id="prev">‹</button><span id="weekLabel"></span><button class="nav" id="next">›</button></div>
+  <div class="weekhead hidden" id="weekhead"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span></div>
   <div class="week" id="week"></div>
   <div class="filter" id="filter">
     <button class="fchip on" data-f="all">전체</button>
@@ -151,6 +162,15 @@ function addDays(ymd, n){ const d=new Date(ymd+"T00:00:00"); d.setDate(d.getDate
 function fmt(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 const todayStr = fmt(new Date());
 let weekStart = addDays(todayStr, -((new Date().getDay()+6)%7));  // 이번 주 월요일
+let view = "week";                       // "week" | "month"
+let monthStart = todayStr.slice(0,8) + "01";   // 이번 달 1일
+const mondayOf = ymd => { const d=new Date(ymd+"T00:00:00"); return addDays(ymd, -((d.getDay()+6)%7)); };
+// 화면에 보이는 기간 (월 보기는 달력 칸 전체: 1일이 속한 주 월요일 ~ 말일이 속한 주 일요일)
+function range(){
+  if(view==="week") return [weekStart, addDays(weekStart,6)];
+  const last = addDays(addDays(monthStart, 32).slice(0,8)+"01", -1);
+  return [mondayOf(monthStart), addDays(mondayOf(last), 6)];
+}
 let sel = todayStr, filter = "all", DATA = [];
 const won = n => n.toLocaleString("ko-KR") + "원";
 const hm = t => t ? t.slice(0,5) : "";  // "16:30:00" → "16:30"
@@ -163,7 +183,8 @@ const setToken = t => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStor
 let memToken = getToken();
 
 async function load(){
-  const { data, error } = await sb.rpc("staff_week", { p_token: memToken, p_from: weekStart, p_to: addDays(weekStart, 6) });
+  const [from, to] = range();
+  const { data, error } = await sb.rpc("staff_week", { p_token: memToken, p_from: from, p_to: to });
   if(error){
     if(String(error.message).includes("invalid_token")) return showLogin();
     toast("불러오기 실패: " + error.message); return;
@@ -234,22 +255,50 @@ function render(){
 
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2000); }
 
-// ── 주간 달력: 월~일, ‹ › 로 주 이동 ──
+// ── 달력: 주 보기(7칸) / 월 보기(한 달 전체), ‹ › 로 이동 ──
 function renderWeek(){
-  const mon = weekStart, sun = addDays(weekStart, 6);
-  $("weekLabel").textContent = `${+mon.slice(5,7)}/${+mon.slice(8)} ~ ${+sun.slice(5,7)}/${+sun.slice(8)}`;
-  $("week").innerHTML = [0,1,2,3,4,5,6].map(i=>{
-    const d = addDays(weekStart, i), list = DATA.filter(r=>r.checkin===d);
+  const [from, to] = range();
+  const days = []; for(let d=from; d<=to; d=addDays(d,1)) days.push(d);
+  if(view==="week"){
+    $("weekLabel").textContent = `${+from.slice(5,7)}/${+from.slice(8)} ~ ${+to.slice(5,7)}/${+to.slice(8)}`;
+  } else {
+    $("weekLabel").textContent = `${monthStart.slice(0,4)}년 ${+monthStart.slice(5,7)}월`;
+  }
+  $("week").classList.toggle("month", view==="month");
+  $("weekhead").classList.toggle("hidden", view!=="month");
+  $("week").innerHTML = days.map((d,i)=>{
+    const list = DATA.filter(r=>r.checkin===d);
     const wait = list.some(r=>!r.answer);
-    return `<button class="day ${d===sel?"on":""} ${d===todayStr?"today":""} ${i===5?"sat":""} ${i===6?"sun":""}" data-day="${d}">
-      ${wait?'<span class="dot"></span>':""}<small>${"월화수목금토일"[i]}</small><b>${+d.slice(8)}</b><span class="cnt">${list.length?list.length+"팀":""}</span></button>`;
+    const out = view==="month" && d.slice(0,7)!==monthStart.slice(0,7);
+    const w = i % 7;
+    return `<button class="day ${d===sel?"on":""} ${d===todayStr?"today":""} ${w===5?"sat":""} ${w===6?"sun":""} ${out?"out":""}" data-day="${d}">
+      ${wait?'<span class="dot"></span>':""}<small>${"월화수목금토일"[w]}</small><b>${+d.slice(8)}</b><span class="cnt">${list.length?list.length+"팀":""}</span></button>`;
   }).join("");
 }
 $("week").onclick = e=>{ const b=e.target.closest(".day"); if(!b) return; sel=b.dataset.day; render(); };
-// 주를 옮기면: 이번 주면 오늘, 다른 주면 월요일 선택
-const moveWeek = n => { weekStart=addDays(weekStart,n); sel = (todayStr>=weekStart && todayStr<=addDays(weekStart,6)) ? todayStr : weekStart; load(); };
-$("prev").onclick = ()=>moveWeek(-7);
-$("next").onclick = ()=>moveWeek(7);
+// 이동: 오늘이 들어 있으면 오늘, 아니면 첫날 선택
+function move(n){
+  if(view==="week"){
+    weekStart = addDays(weekStart, 7*n);
+    sel = (todayStr>=weekStart && todayStr<=addDays(weekStart,6)) ? todayStr : weekStart;
+  } else {
+    const d = new Date(monthStart+"T00:00:00"); d.setMonth(d.getMonth()+n);
+    monthStart = fmt(d).slice(0,8)+"01";
+    sel = todayStr.slice(0,7)===monthStart.slice(0,7) ? todayStr : monthStart;
+  }
+  load();
+}
+$("prev").onclick = ()=>move(-1);
+$("next").onclick = ()=>move(1);
+// 주/월 전환: 지금 선택한 날짜 기준으로 맞춤
+$("viewtabs").onclick = e=>{
+  const b=e.target.closest(".vt"); if(!b || b.dataset.v===view) return;
+  view = b.dataset.v;
+  document.querySelectorAll(".vt").forEach(x=>x.classList.toggle("on", x===b));
+  if(view==="month") monthStart = sel.slice(0,8)+"01"; else weekStart = mondayOf(sel);
+  try { localStorage.setItem("narinsoom_view", view); } catch {}
+  load();
+};
 $("filter").onclick = e=>{
   const b=e.target.closest(".fchip"); if(!b) return;
   filter=b.dataset.f; document.querySelectorAll(".fchip").forEach(x=>x.classList.toggle("on",x===b)); render();
@@ -293,6 +342,7 @@ $("loginBox").onsubmit = e => { e.preventDefault(); tryLogin(); };
 $("pin").oninput = e => { e.target.value = e.target.value.replace(/\D/g,"").slice(0,4); if(e.target.value.length===4) tryLogin(); };
 $("logout").onclick = async ()=>{ await sb.rpc("staff_logout", { p_token: memToken }); showLogin(); };
 
+try { if(localStorage.getItem("narinsoom_view")==="month"){ view="month"; document.querySelectorAll(".vt").forEach(x=>x.classList.toggle("on", x.dataset.v==="month")); } } catch {}
 if(memToken) showMain(); else showLogin();
 setInterval(()=>{ if(!$("main").classList.contains("hidden")) load(); }, 60000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && !$("main").classList.contains("hidden")) load(); });
