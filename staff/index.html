@@ -26,6 +26,12 @@
   .week.month .day small{display:none}
   .week.month .day b{font-size:14px}
   .day.out{opacity:.35}
+  .legend{font-size:11px;color:var(--sub);margin:-4px 0 12px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .legend .rm{padding:0 3px}
+  .rms{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;min-height:16px;margin-top:2px;padding:0 2px}
+  .rm{font-style:normal;font-size:10px;font-weight:700;line-height:14px;min-width:14px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+  .rm.w{background:var(--warn-soft);color:var(--warn)}
+  .day.on .rm{background:rgba(255,255,255,.25);color:var(--bg)}
   .day{padding:8px 0;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-align:center;position:relative}
   .day small{display:block;font-size:11px;color:var(--sub)}
   .day b{font-size:16px}
@@ -104,6 +110,7 @@
   <div class="weekbar"><button class="nav" id="prev">‹</button><span id="weekLabel"></span><button class="nav" id="next">›</button></div>
   <div class="weekhead hidden" id="weekhead"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span></div>
   <div class="week" id="week"></div>
+  <div class="legend hidden" id="legend"><i class="rm">1</i> 응답 완료 <i class="rm w">1</i> 미응답 · 숫자는 호실, '별'은 별채</div>
   <div class="filter" id="filter">
     <button class="fchip on" data-f="all">전체</button>
     <button class="fchip" data-f="wait">미응답만</button>
@@ -266,13 +273,20 @@ function renderWeek(){
   }
   $("week").classList.toggle("month", view==="month");
   $("weekhead").classList.toggle("hidden", view!=="month");
+  $("legend").classList.toggle("hidden", view!=="month");
   $("week").innerHTML = days.map((d,i)=>{
     const list = DATA.filter(r=>r.checkin===d);
     const wait = list.some(r=>!r.answer);
     const out = view==="month" && d.slice(0,7)!==monthStart.slice(0,7);
     const w = i % 7;
+    // 월 보기: 팀 수 대신 어느 객실인지 (1·2·3·4·별), 미응답은 주황
+    const rooms = ORDER.filter(rm => list.some(r=>r.room===rm)).map(rm => {
+      const r = list.find(x=>x.room===rm);
+      return `<i class="rm ${r.answer?"":"w"}">${rm==="별채"?"별":rm[0]}</i>`;
+    }).join("");
+    const info = view==="month" ? `<span class="rms">${rooms}</span>` : `<span class="cnt">${list.length?list.length+"팀":""}</span>`;
     return `<button class="day ${d===sel?"on":""} ${d===todayStr?"today":""} ${w===5?"sat":""} ${w===6?"sun":""} ${out?"out":""}" data-day="${d}">
-      ${wait?'<span class="dot"></span>':""}<small>${"월화수목금토일"[w]}</small><b>${+d.slice(8)}</b><span class="cnt">${list.length?list.length+"팀":""}</span></button>`;
+      ${wait && view==="week"?'<span class="dot"></span>':""}<small>${"월화수목금토일"[w]}</small><b>${+d.slice(8)}</b>${info}</button>`;
   }).join("");
 }
 $("week").onclick = e=>{ const b=e.target.closest(".day"); if(!b) return; sel=b.dataset.day; render(); };
