@@ -88,9 +88,6 @@
   .pin{text-align:center;font-size:28px !important;letter-spacing:.5em}
   .hint{font-size:12px;color:var(--sub);margin-top:10px;text-align:center}
   .logout{border:0;background:none;color:var(--sub);font-size:12px;text-decoration:underline}
-  .pagenav{display:flex;gap:6px;margin:10px 0 14px}
-  .pagenav a{flex:1;text-align:center;padding:9px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;text-decoration:none;font-size:15px}
-  .pagenav a.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .hidden{display:none !important}
 </style>
 </head>
@@ -108,7 +105,7 @@
 <!-- 직원 화면 -->
 <div class="wrap hidden" id="main">
   <div class="top"><div class="brand">NARINSOOM · STAFF</div><div><span class="brand" id="clock"></span> <button class="logout" id="logout">잠금</button></div></div>
-  <nav class="pagenav"><a href="./" class="on">입실 현황</a><a href="./purchase.html">🛒 구매요청</a></nav>
+  <h1>입실 현황</h1>
   <div class="viewtabs" id="viewtabs"><button class="vt on" data-v="week">주</button><button class="vt" data-v="month">월</button></div>
   <div class="weekbar"><button class="nav" id="prev">‹</button><span id="weekLabel"></span><button class="nav" id="next">›</button></div>
   <div class="weekhead hidden" id="weekhead"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span></div>
@@ -126,6 +123,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/config.js"></script>
+<script src="./nav.js"></script>
 <script>
 const sb = supabase.createClient(CONFIG.url, CONFIG.key);
 const $ = id => document.getElementById(id);
@@ -338,11 +336,12 @@ $("list").onclick = async e=>{
 
 // ── 비밀번호 ──
 function showLogin(){
+  document.body.classList.add("locked");
   setToken(null); memToken = null;
   $("main").classList.add("hidden"); $("loginBox").classList.remove("hidden");
   $("pin").value = ""; $("pin").focus();
 }
-function showMain(){ $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden"); load(); }
+function showMain(){ document.body.classList.remove("locked"); $("loginBox").classList.add("hidden"); $("main").classList.remove("hidden"); load(); }
 
 async function tryLogin(){
   const pin = $("pin").value;
