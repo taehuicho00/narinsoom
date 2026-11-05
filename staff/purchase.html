@@ -43,6 +43,7 @@
   .item{margin-top:6px;font-size:16px;font-weight:700;overflow-wrap:anywhere}
   .link.sub{margin-top:2px;font-size:13px;font-weight:500;color:var(--sub)}
   .rejectbox{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .who .re{color:var(--warn);font-weight:700}
   .memo.reason{background:var(--bad-soft);color:var(--bad)}
   .btn.no.sure{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:700}
   .who{color:var(--sub);font-size:12px}
@@ -199,18 +200,20 @@ async function load(){
   const { data, error } = await sb.rpc("staff_purchase_list", { p_token: token });
   if(error) return failed(error, "불러오기");
   DATA = data || [];
-  if(rejecting) return;  // 반려 사유 입력 중에는 화면을 다시 그리지 않음
+  if(rejecting || editing) return;  // 반려 사유·수정 입력 중에는 화면을 다시 그리지 않음
   $("updated").textContent = `마지막 업데이트 ${new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} · 1분마다 자동 새로고침`;
   render();
 }
 
 let sure = null;  // 삭제는 두 번 눌러야 함
 let rejecting = null, reasonDraft = "";  // 반려 사유 입력 중인 요청
+let editing = null;  // 반려된 요청을 수정 중인 요청 id
 function render(){
   const cnt = { requested:0, bought:0, rejected:0 };
   DATA.forEach(r => cnt[r.status]++);
   $("filter").innerHTML = Object.entries(STATUS).map(([k,l]) => `<button class="fchip ${k===filter?"on":""}" data-f="${k}">${l}<b>${cnt[k]}</b></button>`).join("");
-  const shown = DATA.filter(r => r.status === filter);
+  const shown = DATA.filter(r => r.status === filter)
+    .sort((a,b) => new Date(b.resubmitted_at || b.created_at) - new Date(a.resubmitted_at || a.created_at));
   if(!shown.length){
     $("list").innerHTML = `<div class="empty">${filter==="requested" ? "진행중인 요청이 없습니다." : STATUS[filter] + "된 요청이 없습니다."}</div>`;
     return;
@@ -219,15 +222,24 @@ function render(){
     const href = /^https?:\/\//i.test(r.url) ? r.url : "#";
     const acts = r.status === "requested"
       ? `<button class="btn done" data-st="bought" data-id="${r.id}">구매완료</button><button class="btn no" data-reject="${r.id}">반려</button>`
-      : `<button class="btn" data-st="requested" data-id="${r.id}">진행중으로 되돌리기</button>`;
+      : r.status === "rejected"
+        ? `<button class="btn done" data-edit="${r.id}">수정해서 다시 신청</button><button class="btn" data-st="requested" data-id="${r.id}">되돌리기</button>`
+        : `<button class="btn" data-st="requested" data-id="${r.id}">진행중으로 되돌리기</button>`;
     return `<div class="card req ${r.status}">
       <div class="row1"><span class="store ${esc(r.store)}">${STORE[r.store] || "기타"}</span><span class="qtyb">${r.qty}개</span></div>
       ${r.item ? `<div class="item">${esc(r.item)}</div>` : ""}
       <a class="link ${r.item ? "sub" : ""}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(shortUrl(r.url))}</a>
-      <div class="who">요청 ${when(r.created_at)}${r.status_at ? ` · ${STATUS[r.status]} ${when(r.status_at)}` : ""}</div>
+      <div class="who">요청 ${when(r.created_at)}${r.resubmitted_at ? ` · <b class="re">재신청 ${when(r.resubmitted_at)}</b>` : ""}${r.status_at ? ` · ${STATUS[r.status]} ${when(r.status_at)}` : ""}</div>
       ${r.note ? `<div class="memo">💬 ${esc(r.note)}</div>` : ""}
-      ${r.status==="rejected" && r.reject_reason ? `<div class="memo reason">반려 사유: ${esc(r.reject_reason)}</div>` : ""}
-      ${rejecting===r.id ? `<div class="rejectbox">
+      ${r.reject_reason && r.status!=="bought" ? `<div class="memo reason">${r.status==="rejected" ? "반려 사유" : "이전 반려 사유"}: ${esc(r.reject_reason)}</div>` : ""}
+      ${editing===r.id ? `<div class="rejectbox editbox">
+        <div class="field"><label for="e-item">상품명</label><input id="e-item" type="text" maxlength="80" value="${esc(r.item || "")}"></div>
+        <div class="field"><label for="e-url">상품 링크</label><input id="e-url" type="text" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc(r.url)}"></div>
+        <div class="field"><label for="e-qty">수량</label><input id="e-qty" type="number" inputmode="numeric" min="1" max="999" value="${r.qty}" style="max-width:120px"></div>
+        <div class="field"><label for="e-note">메모 <small>(선택)</small></label><textarea id="e-note" maxlength="300">${esc(r.note || "")}</textarea></div>
+        <div class="err" id="e-err" hidden></div>
+        <div class="actions"><button class="btn done" data-resubmit="${r.id}">다시 신청하기</button><button class="btn" data-cancel="1">취소</button></div>
+      </div>` : rejecting===r.id ? `<div class="rejectbox">
         <label for="reason">반려 사유 <small>(선택)</small></label>
         <textarea id="reason" maxlength="200">${esc(reasonDraft)}</textarea>
         <div class="actions"><button class="btn no sure" data-st="rejected" data-id="${r.id}">반려하기</button><button class="btn" data-cancel="1">취소</button></div>
@@ -245,7 +257,28 @@ $("filter").onclick = e => {
 $("list").onclick = async e => {
   const rj = e.target.closest("[data-reject]");
   if(rj){ rejecting = rj.dataset.reject; reasonDraft = ""; render(); $("reason")?.focus(); return; }
-  if(e.target.closest("[data-cancel]")){ rejecting = null; render(); return; }
+  if(e.target.closest("[data-cancel]")){ rejecting = null; editing = null; render(); return; }
+  const ed = e.target.closest("[data-edit]");
+  if(ed){ editing = ed.dataset.edit; rejecting = null; render(); $("e-item")?.focus(); return; }
+  const rs = e.target.closest("[data-resubmit]");
+  if(rs){
+    const er = $("e-err"); er.hidden = true;
+    const item = $("e-item").value.trim();
+    const url = extractUrl($("e-url").value).url;
+    const qty = Math.min(999, Math.max(1, +$("e-qty").value | 0 || 1));
+    if(!item){ er.textContent = "상품명을 적어 주세요."; er.hidden = false; return; }
+    if(!url || !storeOf(url)){ er.textContent = "링크를 찾지 못했어요. 쿠팡·네이버에서 '공유 → 링크 복사' 후 붙여 넣어 주세요."; er.hidden = false; return; }
+    rs.disabled = true;
+    const { error } = await sb.rpc("staff_purchase_resubmit", { p_token: token, p_id: rs.dataset.resubmit, p_item: item, p_url: url, p_qty: qty, p_note: $("e-note").value });
+    rs.disabled = false;
+    if(error){
+      if(String(error.message).includes("invalid_token")) return toLogin();
+      er.textContent = error.message; er.hidden = false; return;
+    }
+    editing = null; filter = "requested";
+    toast("다시 신청했습니다");
+    return load();
+  }
   const st = e.target.closest("[data-st]");
   if(st){
     const args = { p_token: token, p_id: st.dataset.id, p_status: st.dataset.st };
