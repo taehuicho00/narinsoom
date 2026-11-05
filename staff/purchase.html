@@ -40,6 +40,8 @@
   .store.naver{color:var(--naver)} .store.coupang{color:var(--coupang)} .store.etc{color:var(--sub)}
   .qtyb{font-size:18px;font-weight:700;white-space:nowrap}
   .link{display:block;margin:6px 0 2px;color:var(--ink);font-weight:600;overflow-wrap:anywhere;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+  .item{margin-top:6px;font-size:16px;font-weight:700;overflow-wrap:anywhere}
+  .link.sub{margin-top:2px;font-size:13px;font-weight:500;color:var(--sub)}
   .who{color:var(--sub);font-size:12px}
   .memo{margin-top:8px;font-size:13px;background:var(--bg);border-radius:10px;padding:8px 10px;overflow-wrap:anywhere}
   .actions{display:flex;gap:6px;margin-top:10px}
@@ -60,6 +62,10 @@
   <h1>구매요청</h1>
 
   <form class="card" id="form" novalidate>
+    <div class="field">
+      <label for="item">상품명</label>
+      <input id="item" type="text" maxlength="80" autocomplete="off">
+    </div>
     <div class="field">
       <label for="url">상품 링크 <small>네이버·쿠팡 주소 붙여넣기</small></label>
       <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -169,16 +175,18 @@ $("qty").onchange  = () => setQty(+$("qty").value);
 $("form").onsubmit = async e => {
   e.preventDefault();
   const err = $("formErr"); err.hidden = true;
+  const item = $("item").value.trim();
+  if(!item){ err.textContent = "상품명을 적어 주세요."; err.hidden = false; $("item").focus(); return; }
   const url = extractUrl($("url").value).url;
   if(!url || !storeOf(url)){ err.textContent = "링크를 찾지 못했어요. 쿠팡·네이버에서 '공유 → 링크 복사' 후 붙여 넣어 주세요."; err.hidden = false; $("url").focus(); return; }
   $("submit").disabled = true; $("submit").textContent = "보내는 중…";
-  const { error } = await sb.rpc("staff_purchase_add", { p_token: token, p_url: url, p_qty: +$("qty").value || 1, p_note: $("note").value });
+  const { error } = await sb.rpc("staff_purchase_add", { p_token: token, p_item: item, p_url: url, p_qty: +$("qty").value || 1, p_note: $("note").value });
   $("submit").disabled = false; $("submit").textContent = "요청 보내기";
   if(error){
     if(String(error.message).includes("invalid_token")) return toLogin();
     err.textContent = error.message; err.hidden = false; return;
   }
-  $("url").value = ""; $("note").value = ""; setQty(1); $("urlHint").textContent = "";
+  $("item").value = ""; $("url").value = ""; $("note").value = ""; setQty(1); $("urlHint").textContent = "";
   toast("요청을 보냈습니다");
   filter = "requested"; load();
 };
@@ -209,7 +217,8 @@ function render(){
       : `<button class="btn" data-st="requested" data-id="${r.id}">진행중으로 되돌리기</button>`;
     return `<div class="card req ${r.status}">
       <div class="row1"><span class="store ${esc(r.store)}">${STORE[r.store] || "기타"}</span><span class="qtyb">${r.qty}개</span></div>
-      <a class="link" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(shortUrl(r.url))}</a>
+      ${r.item ? `<div class="item">${esc(r.item)}</div>` : ""}
+      <a class="link ${r.item ? "sub" : ""}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(shortUrl(r.url))}</a>
       <div class="who">요청 ${when(r.created_at)}${r.status_at ? ` · ${STATUS[r.status]} ${when(r.status_at)}` : ""}</div>
       ${r.note ? `<div class="memo">💬 ${esc(r.note)}</div>` : ""}
       <div class="actions">${acts}<button class="btn del ${sure===r.id?"sure":""}" data-del="${r.id}">${sure===r.id?"정말 삭제":"삭제"}</button></div>
