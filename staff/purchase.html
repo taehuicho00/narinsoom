@@ -61,7 +61,7 @@
   <form class="card" id="form" novalidate>
     <div class="field">
       <label for="url">상품 링크 <small>네이버·쿠팡 주소 붙여넣기</small></label>
-      <input id="url" type="url" inputmode="url" autocomplete="off" placeholder="https://…">
+      <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="쿠팡·네이버에서 복사한 내용 그대로 붙여넣기">
       <div class="hintline" id="urlHint"></div>
     </div>
     <div class="field">
@@ -109,6 +109,23 @@ function storeOf(u){
     return "etc";
   } catch { return null; }
 }
+// 붙여넣은 글에서 링크만 꺼내기
+//  · 쿠팡·네이버 앱 '공유 → 복사'는 "[쿠팡] 상품명 … https://link.coupang.com/a/xxx" 처럼 글과 링크가 같이 복사됨
+//  · https:// 없이 "coupang.com/vp/..." 만 있으면 앞에 붙여 줌
+// 돌려주는 값: { url, rest } — rest는 링크를 뺀 나머지 글(상품명 등)
+function extractUrl(text){
+  const t = String(text || "").trim();
+  let m = t.match(/https?:\/\/[^\s<>"'`]+/i);
+  let url = m ? m[0] : null;
+  if(!url){
+    m = t.match(/(?:[a-z0-9-]+\.)+(?:com|me|ng|kr|net|co)(?::\d+)?(?:\/[^\s<>"'`]*)?/i);
+    if(m) url = "https://" + m[0];
+  }
+  if(!url) return { url:null, rest:t };
+  url = url.replace(/[)\]}>.,!?。、]+$/, "");        // 문장 끝 괄호·마침표 제거
+  const rest = t.replace(m[0], " ").replace(/\s+/g, " ").trim();
+  return { url, rest };
+}
 // 목록에 보여줄 짧은 주소 (예: coupang.com/vp/products/123…)
 function shortUrl(u){
   try { const x = new URL(u); const s = (x.hostname.replace(/^www\./,"") + x.pathname).replace(/\/$/,""); return s.length > 44 ? s.slice(0,43) + "…" : s; }
@@ -122,10 +139,22 @@ function failed(error, what){
 }
 
 // ── 입력 ──
+// 붙여넣기 하면 링크만 남기고, 같이 복사된 상품명은 메모가 비어 있을 때 메모로
+$("url").addEventListener("paste", e => {
+  const text = (e.clipboardData || window.clipboardData)?.getData("text");
+  if(!text) return;
+  const { url, rest } = extractUrl(text);
+  if(!url) return;
+  e.preventDefault();
+  $("url").value = url;
+  if(rest && !$("note").value.trim()) $("note").value = rest.slice(0, 300);
+  $("url").oninput();
+});
 $("url").oninput = () => {
-  const v = $("url").value.trim(), s = v ? storeOf(v) : null, h = $("urlHint");
-  if(!v){ h.textContent = ""; return; }
-  if(!s){ h.textContent = "https:// 로 시작하는 주소를 붙여 넣어 주세요"; h.style.color = "var(--bad)"; return; }
+  const raw = $("url").value.trim(), h = $("urlHint");
+  if(!raw){ h.textContent = ""; return; }
+  const v = extractUrl(raw).url, s = v ? storeOf(v) : null;
+  if(!s){ h.textContent = "링크를 찾지 못했어요. 쿠팡·네이버에서 '공유 → 링크 복사' 후 붙여 넣어 주세요"; h.style.color = "var(--bad)"; return; }
   h.textContent = s === "etc" ? "네이버·쿠팡 외 링크예요. 그대로 요청할 수 있어요." : STORE[s] + " 링크 확인됨";
   h.style.color = s === "naver" ? "var(--naver)" : s === "coupang" ? "var(--coupang)" : "var(--sub)";
 };
@@ -137,8 +166,8 @@ $("qty").onchange  = () => setQty(+$("qty").value);
 $("form").onsubmit = async e => {
   e.preventDefault();
   const err = $("formErr"); err.hidden = true;
-  const url = $("url").value.trim();
-  if(!storeOf(url)){ err.textContent = "상품 링크를 https:// 로 시작하는 주소로 넣어 주세요."; err.hidden = false; $("url").focus(); return; }
+  const url = extractUrl($("url").value).url;
+  if(!url || !storeOf(url)){ err.textContent = "링크를 찾지 못했어요. 쿠팡·네이버에서 '공유 → 링크 복사' 후 붙여 넣어 주세요."; err.hidden = false; $("url").focus(); return; }
   $("submit").disabled = true; $("submit").textContent = "보내는 중…";
   const { error } = await sb.rpc("staff_purchase_add", { p_token: token, p_url: url, p_qty: +$("qty").value || 1, p_note: $("note").value });
   $("submit").disabled = false; $("submit").textContent = "요청 보내기";
