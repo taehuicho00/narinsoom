@@ -24,6 +24,8 @@
   .qty{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);max-width:200px}
   .qty input{border:0;border-radius:0;text-align:center;font-weight:700}
   .qty button{border:0;background:transparent;color:var(--ink);width:48px;font-size:20px}
+  [hidden]{display:none !important}
+  .addmemo{display:block;border:0;background:none;color:var(--accent);font-size:14px;font-weight:600;padding:2px 0;margin:-2px 0 14px}
   .submit{width:100%;padding:13px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
   .submit:disabled{opacity:.5}
   .err{color:var(--bad);font-size:13px;margin-top:8px}
@@ -61,16 +63,17 @@
   <form class="card" id="form" novalidate>
     <div class="field">
       <label for="url">상품 링크 <small>네이버·쿠팡 주소 붙여넣기</small></label>
-      <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="쿠팡·네이버에서 복사한 내용 그대로 붙여넣기">
+      <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
       <div class="hintline" id="urlHint"></div>
     </div>
     <div class="field">
       <label for="qty">수량</label>
       <div class="qty"><button type="button" id="minus" aria-label="수량 줄이기">−</button><input id="qty" type="number" inputmode="numeric" min="1" max="999" value="1"><button type="button" id="plus" aria-label="수량 늘리기">+</button></div>
     </div>
-    <div class="field">
-      <label for="note">메모 <small>선택 · 물건 이름, 옵션, 용도</small></label>
-      <textarea id="note" maxlength="300" placeholder="예: 주방세제 4L, 무향"></textarea>
+    <button type="button" class="addmemo" id="addMemo">+ 메모 추가</button>
+    <div class="field" id="memoField" hidden>
+      <label for="note">메모 <small>물건 이름, 옵션, 용도</small></label>
+      <textarea id="note" maxlength="300"></textarea>
     </div>
     <button class="submit" type="submit" id="submit">요청 보내기</button>
     <div class="err" id="formErr" hidden></div>
@@ -146,11 +149,10 @@ function failed(error, what){
 $("url").addEventListener("paste", e => {
   const text = (e.clipboardData || window.clipboardData)?.getData("text");
   if(!text) return;
-  const { url, rest } = extractUrl(text);
+  const { url } = extractUrl(text);
   if(!url) return;
   e.preventDefault();
   $("url").value = url;
-  if(rest && !$("note").value.trim()) $("note").value = rest.slice(0, 300);
   $("url").oninput();
 });
 $("url").oninput = () => {
@@ -166,6 +168,7 @@ $("minus").onclick = () => setQty(+$("qty").value - 1);
 $("plus").onclick  = () => setQty(+$("qty").value + 1);
 $("qty").onchange  = () => setQty(+$("qty").value);
 
+$("addMemo").onclick = () => { $("addMemo").hidden = true; $("memoField").hidden = false; $("note").focus(); };
 $("form").onsubmit = async e => {
   e.preventDefault();
   const err = $("formErr"); err.hidden = true;
@@ -178,7 +181,7 @@ $("form").onsubmit = async e => {
     if(String(error.message).includes("invalid_token")) return toLogin();
     err.textContent = error.message; err.hidden = false; return;
   }
-  $("url").value = ""; $("note").value = ""; setQty(1); $("urlHint").textContent = "";
+  $("url").value = ""; $("note").value = ""; $("memoField").hidden = true; $("addMemo").hidden = false; setQty(1); $("urlHint").textContent = "";
   toast("요청을 보냈습니다");
   filter = "requested"; load();
 };
