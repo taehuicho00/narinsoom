@@ -45,10 +45,21 @@ def bbq_prepaid(memo):
     return bool(re.search(r"숯불\s*(지급|결제|입금)?\s*완료", memo))
 
 
+SURNAMES = set("김이박최정강조윤장임한오서신권황안송류유전홍고문양손배백허남심노하곽성차주우구민진나지엄채원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제모탁국어은편용예봉경")
+NOT_NAMES = {"예약", "완료", "숯불", "지급", "미지급", "결제", "미결제", "지불", "미지불", "입금", "단골",
+             "애견", "반려견", "강아지", "인원", "인원추가", "추가", "연박", "가족", "업주", "확정", "문의"}
+
+
 def name(memo):
-    """메모 맨 앞의 한글 이름 (없으면 None)"""
-    m = re.match(r"\s*([가-힣]{2,4})(?=\s|/|$)", memo)
-    return m.group(1) if m else None
+    """메모 속 한글 이름 — 위치 상관없이 '/'·쉼표·공백으로 나뉜 조각 중
+    성으로 시작하는 2~4글자 한글 (예약·숯불 같은 단어는 제외). 없으면 None"""
+    text = re.sub(r"(\+?82[\s-]?1\d|01\d)[\s-]?\d{3,4}[\s-]?\d{4}", " ", memo or "")
+    for tok in re.split(r"[\s/,·|:]+", text):
+        tok = re.sub(r"(님|씨)$", "", tok)
+        if re.fullmatch(r"[가-힣]{2,4}", tok) and tok[0] in SURNAMES and tok not in NOT_NAMES \
+                and not any(w in tok for w in ("예약", "완료", "숯불", "지급", "결제", "애견")):
+            return tok
+    return None
 
 
 def group_stays(blocks):
