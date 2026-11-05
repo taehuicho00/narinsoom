@@ -88,6 +88,9 @@
   .pin{text-align:center;font-size:28px !important;letter-spacing:.5em}
   .hint{font-size:12px;color:var(--sub);margin-top:10px;text-align:center}
   .logout{border:0;background:none;color:var(--sub);font-size:12px;text-decoration:underline}
+  .titlebar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0 14px}
+  .titlebar h1{margin:0}
+  .shop{padding:7px 12px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--card);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
   .hidden{display:none !important}
 </style>
 </head>
@@ -105,7 +108,7 @@
 <!-- 직원 화면 -->
 <div class="wrap hidden" id="main">
   <div class="top"><div class="brand">NARINSOOM · STAFF</div><div><span class="brand" id="clock"></span> <button class="logout" id="logout">잠금</button></div></div>
-  <h1>입실 현황</h1>
+  <div class="titlebar"><h1>입실 현황</h1><a class="shop" href="https://claude.ai/artifact/A49P58TSTHL56N5LXfC4Ro" target="_blank" rel="noopener">🛒 구매요청</a></div>
   <div class="viewtabs" id="viewtabs"><button class="vt on" data-v="week">주</button><button class="vt" data-v="month">월</button></div>
   <div class="weekbar"><button class="nav" id="prev">‹</button><span id="weekLabel"></span><button class="nav" id="next">›</button></div>
   <div class="weekhead hidden" id="weekhead"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span></div>
