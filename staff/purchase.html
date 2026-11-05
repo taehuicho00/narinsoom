@@ -123,7 +123,10 @@ function extractUrl(text){
   }
   if(!url) return { url:null, rest:t };
   url = url.replace(/[)\]}>.,!?。、]+$/, "");        // 문장 끝 괄호·마침표 제거
-  const rest = t.replace(m[0], " ").replace(/\s+/g, " ").trim();
+  const rest = t.replace(m[0], " ")
+    .replace(/쿠팡을\s*추천합니다!?/g, " ")          // 쿠팡 공유 문구 머리말
+    .replace(/\[(쿠팡|네이버[^\]]*|N[^\]]*)\]/g, " ")  // [쿠팡], [네이버쇼핑] 같은 꼬리표
+    .replace(/\s+/g, " ").trim();
   return { url, rest };
 }
 // 목록에 보여줄 짧은 주소 (예: coupang.com/vp/products/123…)
