@@ -4,8 +4,9 @@
 // 메뉴 추가는 아래 MENU 배열에 한 줄 추가하면 됩니다.
 (function(){
   const MENU = [
-    { href: "./",              label: "입실 현황", icon: "🏠", match: p => !p.endsWith("purchase.html") },
+    { href: "./",              label: "입실 현황", icon: "🏠", match: p => !/(purchase|receipt)\.html$/.test(p) },
     { href: "./purchase.html", label: "구매요청",  icon: "🛒", match: p => p.endsWith("purchase.html") },
+    { href: "./receipt.html",  label: "간이영수증", icon: "🧾", match: p => p.endsWith("receipt.html") },
   ];
 
   const css = `
