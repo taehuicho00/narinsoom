@@ -67,6 +67,18 @@
   #rcpt .r-foot{text-align:center;font-size:14px;font-weight:700;margin:12px 0 4px}
   #rcpt .r-contact{text-align:center;font-size:11px;color:#555}
   #rcpt .gap{height:8px}
+  /* 발행 내역 */
+  .hhead{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 8px}
+  .hhead h2{margin:0}
+  .rec .r1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .rec .who{font-weight:700;overflow-wrap:anywhere}
+  .rec .amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rec .meta{font-size:12px;color:var(--sub);margin-top:2px}
+  .rec .acts{display:flex;gap:6px;margin-top:10px}
+  .rec .acts button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:13px}
+  .rec .acts .del{flex:0 0 auto;padding:9px 12px;color:var(--sub)}
+  .rec .acts .del.sure{color:#fff;background:var(--bad);border-color:var(--bad)}
+  .empty{text-align:center;color:var(--sub);padding:24px;font-size:14px}
   @media (max-width:420px){ .ihead,.irow{grid-template-columns:62px minmax(0,1fr) minmax(0,.45fr);gap:6px} #rcpt{font-size:11px;padding:14px 10px 12px} }
 </style>
 </head>
@@ -94,12 +106,18 @@
   <img id="previewImg" alt="간이영수증 이미지" hidden>
   <p class="hint" id="pHint" hidden>이미지를 길게 눌러 저장·공유할 수도 있어요. 내용을 고치면 다시 미리보기로 돌아갑니다.</p>
 
+  <div class="hhead"><h2>발행 내역</h2><span class="sub" id="hCount"></span></div>
+  <div id="hist"><div class="empty">불러오는 중…</div></div>
+
 </div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/config.js"></script>
 <script src="./nav.js"></script>
 <script>
+const sb = supabase.createClient(CONFIG.url, CONFIG.key);
 const $ = id => document.getElementById(id);
 
 // 다른 직원 화면과 같은 기기 토큰 → 없으면 입실 현황(로그인)으로
@@ -130,16 +148,17 @@ function korAmt(n){
 }
 
 // ── 품목 입력 ──
-function buildItems(){
+function buildItems(vals = {}){
   $("items").textContent = "";
   ITEMS.forEach(name => {
     const row = document.createElement("div"); row.className = "irow";
     const lb = document.createElement("span"); lb.textContent = name;
     const w = document.createElement("div"); w.className = "won";
     const p = document.createElement("input"); p.className = "price"; p.inputMode = "numeric"; p.placeholder = "0"; p.dataset.name = name; p.setAttribute("aria-label", name + " 금액");
+    const v0 = vals[name] || {}; if(v0.price) p.value = won(v0.price);
     p.addEventListener("input", () => { const v = p.value.replace(/\D/g, ""); p.value = v ? won(+v) : ""; update(); });
     const u = document.createElement("span"); u.textContent = "원";
-    const m = document.createElement("input"); m.className = "memo"; m.maxLength = 20; m.placeholder = "비고"; m.setAttribute("aria-label", name + " 비고");
+    const m = document.createElement("input"); m.className = "memo"; m.maxLength = 20; m.placeholder = "비고"; m.setAttribute("aria-label", name + " 비고"); m.value = v0.memo || "";
     m.addEventListener("input", update);
     w.append(p, u); row.append(lb, w, m); $("items").appendChild(row);
   });
@@ -251,7 +270,7 @@ $("issue").onclick = async () => {
   const d = draft();
   if(!d.items.length){ err.textContent = "품목 금액을 하나 이상 입력해 주세요."; err.hidden = false; return; }
   $("issue").disabled = true; $("issue").textContent = "만드는 중…";
-  try { await makeImage(d); }
+  try { await makeImage(d); saveRecord(d); }
   catch(e){ err.textContent = e && e.message === "nolib" ? "이미지 도구를 불러오지 못했어요. 새로고침해 주세요." : "이미지를 만들지 못했어요. 다시 시도해 주세요."; err.hidden = false; setIssued(false); }
   finally { $("issue").disabled = false; }
 };
@@ -279,10 +298,63 @@ async function loadSig(){
   update();
 }
 
+// ── 발행 내역 (Supabase) ──
+let HIST = [], sure = null;
+const failedToken = error => String(error && error.message).includes("invalid_token") && (location.href = "./");
+async function saveRecord(d){
+  const { error } = await sb.rpc("staff_receipt_add", { p_token: token, p_to: d.to, p_date: d.date, p_items: d.items });
+  if(error){ if(failedToken(error)) return; toast("내역 저장 실패: " + error.message); return; }
+  loadHist();
+}
+async function loadHist(){
+  const { data, error } = await sb.rpc("staff_receipt_list", { p_token: token });
+  if(error){
+    if(failedToken(error)) return;
+    $("hist").innerHTML = "";
+    const e = document.createElement("div"); e.className = "empty";
+    e.textContent = /could not find|does not exist|PGRST202/i.test(error.message + (error.code || "")) ? "발행 내역 DB가 아직 설정되지 않았습니다 (015_receipt.sql 실행 필요)." : "내역을 불러오지 못했습니다.";
+    $("hist").appendChild(e); return;
+  }
+  HIST = data || []; renderHist();
+}
+function renderHist(){
+  const box = $("hist"); box.textContent = "";
+  $("hCount").textContent = HIST.length ? `최근 1년 ${HIST.length}건` : "";
+  if(!HIST.length){ const e = document.createElement("div"); e.className = "empty"; e.textContent = "아직 발행한 영수증이 없습니다."; box.appendChild(e); return; }
+  HIST.forEach(r => {
+    const c = document.createElement("div"); c.className = "card rec";
+    const r1 = document.createElement("div"); r1.className = "r1";
+    const who = document.createElement("span"); who.className = "who"; who.textContent = r.to_name || "받는 분 미입력";
+    const amt = document.createElement("span"); amt.className = "amt"; amt.textContent = won(r.total) + "원";
+    r1.append(who, amt);
+    const meta = document.createElement("div"); meta.className = "meta";
+    const dt = new Date(r.created_at);
+    meta.textContent = `작성일 ${r.issue_date.replace(/-/g, ".")} · ${(r.items || []).map(x => x.name + (x.memo ? `(${x.memo})` : "")).join(", ")} · 발행 ${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+    const acts = document.createElement("div"); acts.className = "acts";
+    const mk = (label, fn, cls) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; if(cls) b.className = cls; b.onclick = fn; acts.appendChild(b); };
+    const rec = { to: r.to_name || "", date: r.issue_date, items: r.items || [], total: r.total };
+    mk("이미지 다시 만들기", async () => { try { await makeImage(rec); $("pTitle").scrollIntoView({ behavior:"smooth", block:"start" }); } catch { toast("이미지를 만들지 못했어요"); } });
+    mk("복사해서 작성", () => {
+      $("to").value = rec.to; $("date").value = today();
+      const v = {}; rec.items.forEach(x => { v[x.name] = { price: x.price, memo: x.memo }; });
+      buildItems(v); update(); window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    mk(sure === r.id ? "정말 삭제" : "삭제", async () => {
+      if(sure !== r.id){ sure = r.id; renderHist(); setTimeout(() => { if(sure === r.id){ sure = null; renderHist(); } }, 4000); return; }
+      sure = null;
+      const { error } = await sb.rpc("staff_receipt_delete", { p_token: token, p_id: r.id });
+      if(error){ if(failedToken(error)) return; toast("삭제 실패: " + error.message); return; }
+      toast("삭제했습니다"); loadHist();
+    }, "del" + (sure === r.id ? " sure" : ""));
+    c.append(r1, meta, acts); box.appendChild(c);
+  });
+}
+
 // 시작
 $("date").value = today();
 buildItems();
 loadSig();
+if(token) loadHist();
 const tick = () => { const d = new Date(); $("clock").textContent = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
 tick(); setInterval(tick, 1000);
 </script>
