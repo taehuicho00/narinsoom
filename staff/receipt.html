@@ -37,16 +37,9 @@
   .submit:disabled{opacity:.5}
   .ghost{width:100%;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:14px;margin-top:8px}
   .err{color:var(--bad);font-size:13px;margin-top:8px}
-  .linkbtn{border:0;background:none;color:var(--sub);font-size:12px;text-decoration:underline;padding:4px}
   .note{font-size:12px;color:var(--sub);text-align:center;margin-top:20px}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
-
-  /* 서명 등록 */
-  #sigPad{display:block;width:100%;height:160px;background:#fff;border:1px dashed var(--line);border-radius:10px;touch-action:none}
-  .sigbtns{display:flex;gap:8px;margin-top:10px}
-  .sigbtns button{flex:1;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:14px}
-  .sigbtns .save{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
 
   /* 미리보기 */
   .phead{display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 8px}
@@ -82,15 +75,6 @@
   <div class="top"><div class="brand">NARINSOOM · STAFF</div><span class="brand" id="clock"></span></div>
   <h1>간이영수증</h1>
 
-  <!-- 이 기기에 서명이 없을 때만 보임 -->
-  <section class="card" id="sigCard" hidden>
-    <h2>대표자 서명 등록</h2>
-    <p class="sub" style="margin:0 0 8px">한 번만 서명해 두면 이 기기에서 만드는 모든 영수증의 (인) 자리에 들어갑니다. 서명은 이 기기에만 저장됩니다.</p>
-    <canvas id="sigPad" aria-label="서명 입력란"></canvas>
-    <div class="sigbtns"><button type="button" class="save" id="sigSave">서명 저장</button><button type="button" id="sigClear">지우기</button><button type="button" id="sigCancel" hidden>취소</button></div>
-    <div class="err" id="sigErr" hidden></div>
-  </section>
-
   <section class="card">
     <div class="two">
       <div><label for="to">받는 분</label><input id="to" maxlength="30" placeholder="성함 또는 회사명" autocomplete="off"></div>
@@ -110,7 +94,6 @@
   <img id="previewImg" alt="간이영수증 이미지" hidden>
   <p class="hint" id="pHint" hidden>이미지를 길게 눌러 저장·공유할 수도 있어요. 내용을 고치면 다시 미리보기로 돌아갑니다.</p>
 
-  <div class="note"><button type="button" class="linkbtn" id="sigRedo">서명 다시 등록</button></div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -128,7 +111,6 @@ if(!token) location.href = "./";
 const BIZ = { name:"나린숨", owner:"조태희", reg:"190-14-02462", addr:"경기도 양평군 용문면 448-15", type:"숙박 및 음식점업", item:"민박업", tel:"010-9455-9321" };
 // 품목 (고정)
 const ITEMS = ["숙박","추가인원","애견동반","숯/그릴"];
-const SIG_KEY = "narinsoom_receipt_sig";
 
 let sig = null;        // 영수증에 넣는 서명 (굵게 처리한 이미지)
 let issued = false;    // 이미지가 만들어진 상태인지
@@ -268,7 +250,6 @@ $("issue").onclick = async () => {
   const err = $("err"); err.hidden = true;
   const d = draft();
   if(!d.items.length){ err.textContent = "품목 금액을 하나 이상 입력해 주세요."; err.hidden = false; return; }
-  if(!sig){ err.textContent = "먼저 위에서 대표자 서명을 등록해 주세요."; err.hidden = false; showSigCard(); return; }
   $("issue").disabled = true; $("issue").textContent = "만드는 중…";
   try { await makeImage(d); }
   catch(e){ err.textContent = e && e.message === "nolib" ? "이미지 도구를 불러오지 못했어요. 새로고침해 주세요." : "이미지를 만들지 못했어요. 다시 시도해 주세요."; err.hidden = false; setIssued(false); }
@@ -277,33 +258,7 @@ $("issue").onclick = async () => {
 $("reset").onclick = () => { $("to").value = ""; $("date").value = today(); buildItems(); $("err").hidden = true; update(); };
 ["to","date"].forEach(id => $(id).addEventListener("input", update));
 
-// ── 서명 (이 기기에만 저장) ──
-const pad = $("sigPad"), ctx = pad.getContext("2d");
-let drawing = false, drawn = false;
-function padSetup(){
-  const r = pad.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  pad.width = Math.round(r.width * dpr); pad.height = Math.round(r.height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#111";
-  drawn = false;
-}
-const pos = e => { const r = pad.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-pad.addEventListener("pointerdown", e => { drawing = true; pad.setPointerCapture(e.pointerId); const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + .1, p.y + .1); ctx.stroke(); drawn = true; });
-pad.addEventListener("pointermove", e => { if(!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
-["pointerup","pointercancel","pointerleave"].forEach(t => pad.addEventListener(t, () => { drawing = false; }));
-
-// 서명 부분만 잘라 작은 PNG로
-function trimmedSig(){
-  const w = pad.width, h = pad.height, data = ctx.getImageData(0, 0, w, h).data;
-  let x0 = w, y0 = h, x1 = -1, y1 = -1;
-  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ if(data[(y*w + x)*4 + 3] > 10){ if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y; } }
-  if(x1 < 0) return null;
-  x0 = Math.max(0, x0-6); y0 = Math.max(0, y0-6); x1 = Math.min(w-1, x1+6); y1 = Math.min(h-1, y1+6);
-  const sw = x1-x0+1, sh = y1-y0+1, s = Math.min(1, 120/sh, 360/sw);
-  const out = document.createElement("canvas"); out.width = Math.round(sw*s); out.height = Math.round(sh*s);
-  out.getContext("2d").drawImage(pad, x0, y0, sw, sh, 0, 0, out.width, out.height);
-  return out.toDataURL("image/png");
-}
+// ── 서명: 고정 파일(sign.png) ──
 // 서명 선을 굵게
 function thicken(src){
   return new Promise(res => {
@@ -320,22 +275,9 @@ function thicken(src){
   });
 }
 async function loadSig(){
-  let raw = null; try { raw = localStorage.getItem(SIG_KEY); } catch {}
-  sig = raw ? await thicken(raw) : null;
-  if(!sig) showSigCard(); else $("sigCard").hidden = true;
+  sig = await thicken("./sign.png");
   update();
 }
-function showSigCard(canCancel){ $("sigCard").hidden = false; $("sigCancel").hidden = !canCancel; padSetup(); $("sigCard").scrollIntoView({ behavior:"smooth", block:"start" }); }
-$("sigClear").onclick = () => { padSetup(); $("sigErr").hidden = true; };
-$("sigCancel").onclick = () => { $("sigCard").hidden = true; };
-$("sigRedo").onclick = () => showSigCard(!!sig);
-$("sigSave").onclick = async () => {
-  const e = $("sigErr"); e.hidden = true;
-  const img = drawn ? trimmedSig() : null;
-  if(!img){ e.textContent = "서명을 먼저 그려 주세요."; e.hidden = false; return; }
-  try { localStorage.setItem(SIG_KEY, img); } catch { e.textContent = "이 브라우저에 저장할 수 없어요 (사생활 보호 모드 확인)."; e.hidden = false; return; }
-  await loadSig(); toast("서명을 저장했습니다");
-};
 
 // 시작
 $("date").value = today();

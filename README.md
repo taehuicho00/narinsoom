@@ -19,7 +19,7 @@
 | `index.html` | 손님용 입실 정보 페이지 (`?c=코드`) |
 | `staff/index.html` | 직원용 현황판 (4자리 비밀번호) |
 | `staff/purchase.html` | 직원 구매요청 (네이버·쿠팡 링크 + 수량, 같은 비밀번호) |
-| `staff/receipt.html` | 손님용 간이영수증 이미지 생성 (서명은 기기에만 저장) |
+| `staff/receipt.html` | 손님용 간이영수증 이미지 생성 (대표자 서명: `staff/sign.png`) |
 | `assets/config.js` | Supabase 주소·공개 키 |
 | `supabase/migrations/` | DB 설계 SQL (표, RLS 정책, 함수) |
 
