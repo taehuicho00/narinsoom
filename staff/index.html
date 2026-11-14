@@ -108,7 +108,7 @@
   <h1>입실 현황</h1>
   <div class="viewtabs" id="viewtabs"><button class="vt on" data-v="week">주</button><button class="vt" data-v="month">월</button></div>
   <div class="weekbar"><button class="nav" id="prev">‹</button><span id="weekLabel"></span><button class="nav" id="next">›</button></div>
-  <div class="weekhead hidden" id="weekhead"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span></div>
+  <div class="weekhead hidden" id="weekhead"><span class="sun">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span></div>
   <div class="week" id="week"></div>
   <div class="legend hidden" id="legend"><i class="rm">1</i> 응답 완료 <i class="rm w">1</i> 미응답 · 숫자는 호실, '별'은 별채</div>
   <div class="filter" id="filter">
@@ -169,11 +169,11 @@ const ORDER = ["1호실","2호실","3호실","4호실","별채"];
 function addDays(ymd, n){ const d=new Date(ymd+"T00:00:00"); d.setDate(d.getDate()+n); return fmt(d); }
 function fmt(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 const todayStr = fmt(new Date());
-let weekStart = addDays(todayStr, -((new Date().getDay()+6)%7));  // 이번 주 월요일
+let weekStart = addDays(todayStr, -new Date().getDay());  // 이번 주 일요일
 let view = "week";                       // "week" | "month"
 let monthStart = todayStr.slice(0,8) + "01";   // 이번 달 1일
-const mondayOf = ymd => { const d=new Date(ymd+"T00:00:00"); return addDays(ymd, -((d.getDay()+6)%7)); };
-// 화면에 보이는 기간 (월 보기는 달력 칸 전체: 1일이 속한 주 월요일 ~ 말일이 속한 주 일요일)
+const mondayOf = ymd => { const d=new Date(ymd+"T00:00:00"); return addDays(ymd, -d.getDay()); };  // (이름은 그대로) 그 주 일요일
+// 화면에 보이는 기간 (월 보기는 달력 칸 전체: 1일이 속한 주 일요일 ~ 말일이 속한 주 토요일)
 function range(){
   if(view==="week") return [weekStart, addDays(weekStart,6)];
   const last = addDays(addDays(monthStart, 32).slice(0,8)+"01", -1);
@@ -286,8 +286,8 @@ function renderWeek(){
       return `<i class="rm ${r.answer?"":"w"}">${rm==="별채"?"별":rm[0]}</i>`;
     }).join("");
     const info = view==="month" ? `<span class="rms">${rooms}</span>` : `<span class="cnt">${list.length?list.length+"팀":""}</span>`;
-    return `<button class="day ${d===sel?"on":""} ${d===todayStr?"today":""} ${w===5?"sat":""} ${w===6?"sun":""} ${out?"out":""}" data-day="${d}">
-      ${wait && view==="week"?'<span class="dot"></span>':""}<small>${"월화수목금토일"[w]}</small><b>${+d.slice(8)}</b>${info}</button>`;
+    return `<button class="day ${d===sel?"on":""} ${d===todayStr?"today":""} ${w===6?"sat":""} ${w===0?"sun":""} ${out?"out":""}" data-day="${d}">
+      ${wait && view==="week"?'<span class="dot"></span>':""}<small>${"일월화수목금토"[w]}</small><b>${+d.slice(8)}</b>${info}</button>`;
   }).join("");
 }
 $("week").onclick = e=>{ const b=e.target.closest(".day"); if(!b) return; sel=b.dataset.day; render(); };
