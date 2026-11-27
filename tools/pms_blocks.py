@@ -10,7 +10,7 @@
 import re
 from datetime import date, timedelta
 
-NO_PET_ROOMS = {"1호실", "별채"}  # 반려견 불가 객실은 메모와 상관없이 0마리
+NO_PET_ROOMS = {"별채"}  # 반려견 불가 객실은 메모와 상관없이 0마리
 
 
 def phone(memo):
@@ -33,9 +33,11 @@ def people(memo):
 
 
 def pets(memo):
-    """'애견 2마리', '반려견 1마리' → 2, 1. 숫자가 없으면(예: '+애견') 추측하지 않고 None"""
-    m = re.search(r"(애견|반려견|강아지)\s*(\d)\s*마리", memo)
-    return int(m.group(2)) if m else None
+    """'애견 2마리', '강아지 5kg한마리' → 2, 1. 숫자가 없으면(예: '+애견') 추측하지 않고 None"""
+    m = re.search(r"(애견|반려견|강아지).{0,10}?(\d|한|두|세|네)\s*마리", memo or "")
+    if not m:
+        return None
+    return {"한": 1, "두": 2, "세": 3, "네": 4}.get(m.group(2)) or int(m.group(2))
 
 
 def bbq_prepaid(memo):
